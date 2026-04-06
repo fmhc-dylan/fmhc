@@ -264,8 +264,8 @@
         <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:20px;">
           <div>
             <div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">OAKS Respite days</div>
-            <div style="font-size:12px;color:#718096;margin-bottom:8px;">Just enter the dates — first is going, last is coming home, middle are full OAKS days.</div>
-            <textarea id="oaks-input" placeholder="e.g. 7, 8, 9  (7=going, 8=full OAKS, 9=coming home)" style="width:100%;height:80px;padding:8px 10px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:13px;resize:vertical;outline:none;"></textarea>
+            <div style="font-size:12px;color:#718096;margin-bottom:8px;">Enter all OAKS dates separated by commas. Consecutive dates = one visit. Gaps between dates = separate visits.</div>
+            <textarea id="oaks-input" placeholder="e.g. 1,2,3,5,6,7,12,13,14  (gaps auto-detected as separate visits)" style="width:100%;height:80px;padding:8px 10px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:13px;resize:vertical;outline:none;"></textarea>
           </div>
           <div>
             <div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">PD Days (school)</div>
@@ -778,24 +778,39 @@ function getNightTime(day) {
 function parseOaks(input) {
   oaksDays = {};
   if (!input.trim()) return;
-  // Accept plain numbers: "7, 8, 9" → 7=going, 8=full, 9=coming
-  // Also still accept "5 going, 6, 7, 8 coming" for backwards compat
-  const parts = input.split(",").map(s=>s.trim()).filter(Boolean);
-  if (parts.length === 0) return;
-  if (parts.length === 1) {
-    const n = parseInt(parts[0]);
-    if (!isNaN(n)) oaksDays[n] = "going"; // single day = going only
-    return;
+
+  // Parse all numbers from input (handles commas, spaces, semicolons, newlines)
+  const nums = input.split(/[\s,;]+/)
+    .map(s => parseInt(s.trim()))
+    .filter(n => !isNaN(n) && n >= 1 && n <= 31)
+    .sort((a,b) => a-b);
+
+  if (nums.length === 0) return;
+
+  // Group into consecutive runs — each run is a separate OAKS visit
+  const groups = [];
+  let current = [nums[0]];
+  for (let i=1; i<nums.length; i++) {
+    if (nums[i] === nums[i-1] + 1) {
+      current.push(nums[i]);
+    } else {
+      groups.push(current);
+      current = [nums[i]];
+    }
   }
-  parts.forEach((p, i) => {
-    const num = parseInt(p);
-    if (isNaN(num)) return;
-    // Explicit keywords override position
-    if (p.includes("going"))       oaksDays[num] = "going";
-    else if (p.includes("coming")) oaksDays[num] = "coming";
-    else if (i === 0)              oaksDays[num] = "going";
-    else if (i === parts.length-1) oaksDays[num] = "coming";
-    else                           oaksDays[num] = "full";
+  groups.push(current);
+
+  // Apply going/full/coming to each group independently
+  groups.forEach(group => {
+    if (group.length === 1) {
+      oaksDays[group[0]] = "going"; // day trip — just going
+    } else {
+      group.forEach((d, i) => {
+        if (i === 0)                  oaksDays[d] = "going";
+        else if (i === group.length-1) oaksDays[d] = "coming";
+        else                           oaksDays[d] = "full";
+      });
+    }
   });
 }
 
