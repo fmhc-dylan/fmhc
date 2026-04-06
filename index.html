@@ -68,6 +68,7 @@
   .hcell:hover{border-color:#B5D4F4;}
   .hcell.nurse{background:#E6F1FB;color:#0C447C;font-weight:500;}
   .hcell.psw{background:#f0fff4;color:#276749;font-weight:500;}
+  .hcell.override{background:#FEFCE8;color:#854d0e;font-weight:500;border:1px solid #fde68a !important;}
   .hcell.empty{color:#cbd5e0;font-size:15px;}
   .edit-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px 0;}
   .edit-wrap input{width:54px;text-align:center;border:2px solid #185FA5;border-radius:6px;padding:3px;font-size:12px;outline:none;}
@@ -363,6 +364,7 @@ const db = firebase.firestore();
 let year=new Date().getFullYear(), month=new Date().getMonth()+1;
 let staff=[...DEFAULT_STAFF], hours={}, valueCounts={...DEFAULT_COUNTS};
 let editCell=null, saving=false;
+let manualOverrides={}; // {sid: {day: true}} — tracks cells manually edited by user
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const getDays    = (y,m)  => new Date(y,m,0).getDate();
@@ -453,12 +455,24 @@ async function loadAll(){
 
 async function loadMonth(){
   showLoading(true);
-  hours={};
+  hours={}; manualOverrides={}; scheduleData={}; oaksDays={}; pdDays=new Set();
   try{
     const doc=await db.collection("months").doc(mkey()).get();
     if(doc.exists){
-      hours=doc.data().hours||{};
+      hours          = doc.data().hours||{};
+      manualOverrides= doc.data().manualOverrides||{};
+      scheduleData   = doc.data().scheduleData||{};
       if(doc.data().staff) staff=mergeStaff(doc.data().staff);
+      // Restore OAKS/PD inputs if saved
+      if(doc.data().oaksInput) document.getElementById("oaks-input").value=doc.data().oaksInput;
+      if(doc.data().pdInput)   document.getElementById("pd-input").value=doc.data().pdInput;
+      if(doc.data().oaksInput) parseOaks(doc.data().oaksInput);
+      if(doc.data().pdInput)   parsePD(doc.data().pdInput);
+      // Re-show schedule grid if data exists
+      if(Object.keys(scheduleData).length>0){
+        document.getElementById("sched-grid-card").style.display="block";
+        document.getElementById("sched-individual-card").style.display="block";
+      }
     }
   }catch(e){console.error(e);}
   document.getElementById("top-subtitle").textContent=
@@ -470,7 +484,12 @@ async function loadMonth(){
 async function saveMonth(){
   if(saving) return; saving=true;
   try{
-    await db.collection("months").doc(mkey()).set({hours,staff},{merge:true});
+    const oaksInput = document.getElementById("oaks-input")?.value||"";
+    const pdInput   = document.getElementById("pd-input")?.value||"";
+    await db.collection("months").doc(mkey()).set(
+      {hours, staff, manualOverrides, scheduleData, oaksInput, pdInput},
+      {merge:true}
+    );
     await db.collection("settings").doc("staff").set({list:staff});
   }catch(e){console.error(e);}
   saving=false;
@@ -547,8 +566,10 @@ function renderGrid(){
           <div class="qp-btns">${btns}</div>
         </div></td>`;
       } else {
-        const cls=has?(nurse?"hcell nurse":"hcell psw"):"hcell empty";
-        b+=`<td class="td-hour"><div class="${cls}" onclick="startEdit('${s.id}',${day})">${has?fmt(val):"·"}</div></td>`;
+        const isOverride = has && manualOverrides[s.id]?.[day];
+        const cls = has ? (isOverride ? "hcell override" : nurse ? "hcell nurse" : "hcell psw") : "hcell empty";
+        const title = isOverride ? 'title="Manually adjusted"' : '';
+        b+=`<td class="td-hour"><div class="${cls}" onclick="startEdit('${s.id}',${day})" ${title}>${has?fmt(val):"·"}</div></td>`;
       }
     });
     b+="</tr>";
@@ -573,16 +594,30 @@ async function commitEdit(){
   const num=inp.value.trim()===""?null:parseFloat(inp.value);
   const {sid,day}=editCell;
   if(!hours[sid]) hours[sid]={};
-  if(num==null||isNaN(num)){ delete hours[sid][day]; }
-  else{ hours[sid][day]=num; valueCounts[String(num)]=(valueCounts[String(num)]||0)+1; saveValueCounts(); }
+  if(num==null||isNaN(num)){
+    delete hours[sid][day];
+    if(manualOverrides[sid]) delete manualOverrides[sid][day];
+  } else {
+    hours[sid][day]=num;
+    valueCounts[String(num)]=(valueCounts[String(num)]||0)+1;
+    saveValueCounts();
+    // Mark as manually overridden
+    if(!manualOverrides[sid]) manualOverrides[sid]={};
+    manualOverrides[sid][day]=true;
+  }
   editCell=null; render(); saveMonth();
 }
 async function applyPick(v){
   if(!editCell) return;
   const {sid,day}=editCell;
   if(!hours[sid]) hours[sid]={};
-  hours[sid][day]=v; valueCounts[String(v)]=(valueCounts[String(v)]||0)+1;
-  saveValueCounts(); editCell=null; render(); saveMonth();
+  hours[sid][day]=v;
+  valueCounts[String(v)]=(valueCounts[String(v)]||0)+1;
+  saveValueCounts();
+  // Mark as manually overridden
+  if(!manualOverrides[sid]) manualOverrides[sid]={};
+  manualOverrides[sid][day]=true;
+  editCell=null; render(); saveMonth();
 }
 
 // ── Summary ────────────────────────────────────────────────────────────────
@@ -710,7 +745,13 @@ function copyExport(){
 // SCHEDULER
 // ══════════════════════════════════════════════════════════════════════════
 
-// Short display names mapped to staff ids
+// Staff-specific shift hour overrides — Bry starts at 4pm not 3pm for afternoon shifts
+const STAFF_SHIFT_OVERRIDES = {
+  "ellis": {
+    "arvo":    { hrs: 5.5, time: "4:00pm–9:30pm" },
+    "oaks_in": { hrs: 5.5, time: "4:00pm–9:30pm" },
+  }
+};
 const SHORT_NAMES = {
   simms:     "Tania (RN)",
   simms_psw: "Tania (PSW)",
@@ -1014,11 +1055,12 @@ function assignShift(day, shiftId, staffId, selectEl) {
   const s = staffId ? staff.find(x=>x.id===staffId) : null;
   selectEl.className = "shift-select " + (s ? (s.role==="PSW"?"psw":"nurse") : "");
 
-  // Recalculate pool hours from schedule
+  // Recalculate pool hours from schedule and update everything
   syncScheduleToHours();
   renderPools();
-  renderSchedGrid();
+  renderSchedStaffBtns();  // refresh staff buttons with newly assigned people
   if (activeSchedStaff) showIndividualSchedule(activeSchedStaff);
+  saveMonth();
 }
 
 function syncScheduleToHours() {
@@ -1027,18 +1069,18 @@ function syncScheduleToHours() {
   for (let d=1; d<=days; d++) {
     const shifts = scheduleData[d]?.shifts||{};
     Object.entries(shifts).forEach(([shiftId, sid])=>{
-      if (!sid || shiftId==="night") return;
-      const h = SHIFT_HRS[shiftId]||0;
+      if (!sid) return;
+      // Skip if manually overridden by user
+      if (manualOverrides[sid]?.[d]) return;
       if (!hours[sid]) hours[sid]={};
-      hours[sid][d] = (hours[sid][d]||0);
-      hours[sid][d] = h;
+      if (shiftId==="night") {
+        hours[sid][d] = getNightHrs(d);
+      } else {
+        // Check for staff-specific override (e.g. Bry's 4pm start)
+        const staffOverride = STAFF_SHIFT_OVERRIDES[sid]?.[shiftId];
+        hours[sid][d] = staffOverride ? staffOverride.hrs : (SHIFT_HRS[shiftId]||0);
+      }
     });
-    // Night hours for Tania
-    const nightSid = shifts["night"];
-    if (nightSid) {
-      if (!hours[nightSid]) hours[nightSid]={};
-      hours[nightSid][d] = getNightHrs(d);
-    }
   }
 }
 
@@ -1074,14 +1116,18 @@ function showIndividualSchedule(sid) {
   if (!s) return;
   const mon  = MONTH_NAMES[month-1];
   const days = getDays(year,month);
-  const name = s.name;
-  const role = s.role;
 
-  let lines = [];
-  let totalHrs = 0;
+  // Shift times lookup — standard
+  const SHIFT_TIMES = {
+    early:"5:30am–7:00am", morning:"6:00am–2:00pm",
+    arvo:"3:00pm–9:30pm",  oaks_out:"6:00am–10:00am", oaks_in:"3:00pm–9:30pm"
+  };
+  const SHIFT_HRS_STD = { early:1.5, morning:8.0, arvo:6.5, oaks_out:4.0, oaks_in:6.5 };
+
+  let lines = [], totalHrs = 0;
 
   for (let d=1; d<=days; d++) {
-    const shifts = scheduleData[d]?.shifts||{};
+    const shifts  = scheduleData[d]?.shifts||{};
     const dayType = getDayType(d);
     const active  = getShiftsForDay(dayType);
 
@@ -1089,22 +1135,34 @@ function showIndividualSchedule(sid) {
       if (shifts[shiftId] !== sid) return;
       const date = new Date(year,month-1,d);
       const dow  = DOW[date.getDay()];
-      let timeStr="", hrs=0;
+      let timeStr, hrs;
+
       if (shiftId==="night") {
-        timeStr=getNightTime(d); hrs=getNightHrs(d);
+        timeStr = getNightTime(d);
+        hrs     = getNightHrs(d);
       } else {
-        const sh=SHIFTS.find(x=>x.id===shiftId);
-        timeStr=sh?.time||""; hrs=sh?.hrs||0;
+        // Use staff-specific override if exists (e.g. Bry 4pm start)
+        const staffOvr = STAFF_SHIFT_OVERRIDES[sid]?.[shiftId];
+        timeStr = staffOvr ? staffOvr.time : (SHIFT_TIMES[shiftId]||"");
+        hrs     = staffOvr ? staffOvr.hrs  : (SHIFT_HRS_STD[shiftId]||0);
       }
-      const dateStr=`${dow} ${mon} ${d}`.padEnd(14);
-      lines.push(`${dateStr}  ${timeStr.padEnd(18)}  ${hrs.toFixed(1)} hrs`);
+
+      // If manually overridden in hours grid, use actual hours
+      if (manualOverrides[sid]?.[d]) {
+        hrs = hours[sid]?.[d] || hrs;
+      }
+
+      const dateStr = `${dow} ${mon} ${d}`.padEnd(14);
+      const note    = manualOverrides[sid]?.[d] ? " *" : "";
+      lines.push(`${dateStr}  ${timeStr.padEnd(18)}  ${hrs.toFixed(1)} hrs${note}`);
       totalHrs += hrs;
     });
   }
 
-  const header = `${name} — ${role}\n${mon} ${year} Schedule\n${"─".repeat(46)}\n`;
+  const header = `${s.name} — ${s.role}\n${mon} ${year} Schedule\n${"─".repeat(48)}\n`;
   const body   = lines.length>0 ? lines.join("\n") : "(No shifts scheduled this month)";
-  const footer = `\n${"─".repeat(46)}\nTotal: ${totalHrs.toFixed(1)} hrs`;
+  const note   = lines.some(l=>l.endsWith("*")) ? "\n* Hours adjusted from scheduled time" : "";
+  const footer = `\n${"─".repeat(48)}\nTotal: ${totalHrs.toFixed(1)} hrs${note}`;
   document.getElementById("sched-individual-output").textContent = header + body + footer;
 }
 
