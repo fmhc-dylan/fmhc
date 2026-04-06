@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dylan Teskey — FMHC Hours Tracker</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f0f4f8;color:#1a202c;min-height:100vh;}
+  #login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1a4a8a 0%,#2563b0 100%);}
+  .login-box{background:#fff;border-radius:16px;padding:40px 48px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.2);}
+  .login-box h1{font-size:22px;font-weight:600;color:#1a4a8a;margin-bottom:4px;}
+  .login-box p{font-size:13px;color:#718096;margin-bottom:28px;}
+  .login-box label{display:block;font-size:12px;font-weight:600;color:#4a5568;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+  .login-box input{width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;outline:none;transition:border-color .2s;}
+  .login-box input:focus{border-color:#2563b0;}
+  .login-btn{width:100%;margin-top:20px;padding:12px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;}
+  .login-btn:hover{background:#1a4a8a;}
+  .login-btn:disabled{background:#a0aec0;cursor:not-allowed;}
+  .login-error{margin-top:12px;font-size:13px;color:#e53e3e;text-align:center;display:none;}
+  #app{display:none;}
+  .top-bar{background:#185FA5;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+  .top-bar h1{color:#fff;font-size:17px;font-weight:600;}
+  .top-bar-sub{color:#B5D4F4;font-size:12px;margin-top:1px;}
+  .top-bar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .top-bar select{padding:6px 10px;border-radius:8px;border:none;font-size:13px;font-weight:500;cursor:pointer;}
+  .logout-btn{padding:6px 12px;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:8px;font-size:12px;cursor:pointer;}
+  .logout-btn:hover{background:rgba(255,255,255,0.25);}
+  .main{padding:16px;}
+  .pools{display:flex;gap:12px;margin-bottom:14px;}
+  .pool{flex:1;background:#fff;border:0.5px solid #e2e8f0;border-radius:12px;padding:14px 16px;}
+  .pool-label{font-size:12px;font-weight:500;color:#718096;margin-bottom:8px;}
+  .pool-nums{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+  .pool-used{font-size:22px;font-weight:600;}
+  .pool-limit{font-size:13px;font-weight:400;color:#a0aec0;}
+  .pool-left{font-size:12px;}
+  .pool-bar-bg{height:8px;background:#edf2f7;border-radius:6px;overflow:hidden;}
+  .pool-bar-fill{height:100%;border-radius:6px;transition:width .3s;}
+  .pool-pct{font-size:11px;color:#a0aec0;margin-top:4px;}
+  .tabs{display:flex;gap:8px;margin-bottom:12px;}
+  .tab-btn{padding:7px 16px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;background:#fff;color:#2d3748;}
+  .tab-btn.active{background:#185FA5;color:#fff;border-color:#185FA5;}
+  .card{background:#fff;border:0.5px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:14px;}
+  .card-header{padding:14px 20px;border-bottom:0.5px solid #e2e8f0;}
+  .card-header h2{font-size:15px;font-weight:600;color:#1a202c;}
+  .card-header p{font-size:12px;color:#718096;margin-top:2px;}
+  .card-footer{padding:8px 16px;border-top:0.5px solid #e2e8f0;font-size:11px;color:#a0aec0;}
+  .qp-bar{padding:8px 14px;background:#f7fafc;border-bottom:0.5px solid #e2e8f0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .qp-label{font-size:11px;color:#a0aec0;}
+  .qp-pill{padding:2px 8px;border-radius:20px;background:#E6F1FB;color:#0C447C;font-size:11px;font-weight:500;border:0.5px solid #B5D4F4;}
+  .grid-wrap{overflow:auto;max-height:calc(100vh - 280px);}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  thead th{position:sticky;top:0;background:#185FA5;color:#fff;font-weight:500;padding:9px 8px;text-align:center;z-index:10;white-space:nowrap;}
+  thead th.th-day{text-align:left;padding:9px 12px;position:sticky;left:0;z-index:20;}
+  thead th.th-care{border-right:1px solid #B5D4F4;}
+  tbody tr{border-bottom:0.5px solid #e2e8f0;}
+  tbody tr.weekend{background:#EBF4FF;}
+  tbody tr.weekday{background:#fff;}
+  td.td-day{padding:4px 12px;position:sticky;left:0;z-index:5;border-right:0.5px solid #e2e8f0;white-space:nowrap;}
+  tbody tr.weekend td.td-day{background:#EBF4FF;}
+  tbody tr.weekday td.td-day{background:#fff;}
+  td.td-care{padding:4px 6px;text-align:center;border-right:1px solid #e2e8f0;font-size:12px;}
+  td.td-hour{padding:2px 3px;text-align:center;}
+  tfoot tr{background:#185FA5;position:sticky;bottom:0;z-index:8;}
+  tfoot td{padding:9px 8px;color:#fff;text-align:center;font-weight:500;font-size:12px;}
+  tfoot td.td-foot-day{text-align:left;padding:9px 12px;position:sticky;left:0;background:#185FA5;z-index:9;}
+  .hcell{height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;border:0.5px solid transparent;user-select:none;font-size:12px;transition:border-color .1s;}
+  .hcell:hover{border-color:#B5D4F4;}
+  .hcell.nurse{background:#E6F1FB;color:#0C447C;font-weight:500;}
+  .hcell.psw{background:#f0fff4;color:#276749;font-weight:500;}
+  .hcell.empty{color:#cbd5e0;font-size:15px;}
+  .edit-wrap{display:flex;flex-direction:column;align-items:center;gap:3px;padding:2px 0;}
+  .edit-wrap input{width:54px;text-align:center;border:2px solid #185FA5;border-radius:6px;padding:3px;font-size:12px;outline:none;}
+  .qp-btns{display:flex;gap:2px;flex-wrap:wrap;justify-content:center;max-width:110px;}
+  .qp-btn{padding:2px 5px;font-size:10px;border:0.5px solid #B5D4F4;border-radius:4px;background:#E6F1FB;color:#0C447C;cursor:pointer;font-weight:500;}
+  .qp-btn:hover{background:#B5D4F4;}
+  .sum-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .sum-table th{padding:10px 14px;color:#718096;font-weight:500;font-size:12px;border-bottom:0.5px solid #e2e8f0;background:#f7fafc;}
+  .sum-table td{padding:10px 14px;border-bottom:0.5px solid #e2e8f0;}
+  .sum-table tfoot td{background:#185FA5;color:#fff;font-weight:600;padding:11px 14px;}
+  .role-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;}
+  .role-rn{background:#E6F1FB;color:#0C447C;}
+  .role-psw{background:#f0fff4;color:#276749;}
+  .pay-box{background:#f7fafc;border:0.5px solid #e2e8f0;border-radius:8px;padding:14px 16px;font-family:monospace;font-size:12px;line-height:2.1;}
+  .pay-hint{background:#E6F1FB;border-top:0.5px solid #B5D4F4;padding:12px 20px;font-size:12px;color:#0C447C;}
+  .fname-pill{display:inline-block;padding:4px 10px;background:#f7fafc;border:0.5px solid #e2e8f0;border-radius:8px;font-size:12px;font-family:monospace;margin:4px;}
+  .staff-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .staff-table th{padding:10px 14px;color:#718096;font-weight:500;font-size:12px;border-bottom:0.5px solid #e2e8f0;background:#f7fafc;text-align:left;}
+  .staff-table td{padding:10px 14px;border-bottom:0.5px solid #e2e8f0;color:#2d3748;}
+  .add-form-grid{padding:14px 20px;background:#f7fafc;border-bottom:0.5px solid #e2e8f0;display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:end;}
+  .form-field label{display:block;font-size:11px;font-weight:500;color:#718096;margin-bottom:3px;}
+  .form-field input,.form-field select{width:100%;padding:7px 10px;border:0.5px solid #cbd5e0;border-radius:6px;font-size:13px;outline:none;}
+  .form-field input:focus,.form-field select:focus{border-color:#185FA5;}
+  .btn-blue{padding:7px 16px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;}
+  .btn-blue:hover{background:#1a4a8a;}
+  .btn-grey{padding:6px 12px;background:#fff;color:#718096;border:0.5px solid #cbd5e0;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;}
+  .btn-grey:hover{background:#f7fafc;}
+  .btn-danger{background:none;border:none;color:#e53e3e;font-size:11px;cursor:pointer;padding:0;}
+  .btn-row{display:flex;gap:8px;align-items:center;}
+  #loading{position:fixed;inset:0;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;z-index:999;font-size:14px;color:#718096;}
+  @media(max-width:600px){.pools{flex-direction:column;}.add-form-grid{grid-template-columns:1fr 1fr;}}
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <h1>Dylan Teskey — FMHC</h1>
+    <p>Hours &amp; payroll tracker</p>
+    <label for="pw">Password</label>
+    <input type="password" id="pw" placeholder="Enter password" onkeydown="if(event.key==='Enter')tryLogin()"/>
+    <button class="login-btn" id="login-btn" onclick="tryLogin()">Sign in</button>
+    <div class="login-error" id="login-error">Incorrect password. Please try again.</div>
+  </div>
+</div>
+
+<div id="loading" style="display:none;">Loading…</div>
+
+<div id="app">
+  <div class="top-bar">
+    <div>
+      <div class="top-bar-sub" id="top-subtitle">Hours tracker</div>
+      <h1>Dylan Teskey — FMHC</h1>
+    </div>
+    <div class="top-bar-right">
+      <select id="sel-month" onchange="onMonthChange()"></select>
+      <select id="sel-year"  onchange="onMonthChange()"></select>
+      <button class="logout-btn" onclick="logout()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="pools">
+      <div class="pool">
+        <div class="pool-label">Nursing pool (RN + RPN)</div>
+        <div class="pool-nums"><span class="pool-used" id="pn-used">0</span><span class="pool-limit" id="pn-limit">/ 240 hrs</span><span class="pool-left" id="pn-left">240 left</span></div>
+        <div class="pool-bar-bg"><div class="pool-bar-fill" id="pn-bar" style="width:0%;background:#185FA5;"></div></div>
+        <div class="pool-pct" id="pn-pct">0.0% used</div>
+      </div>
+      <div class="pool">
+        <div class="pool-label">PSW pool</div>
+        <div class="pool-nums"><span class="pool-used" id="pp-used">0</span><span class="pool-limit" id="pp-limit">/ 120 hrs</span><span class="pool-left" id="pp-left">120 left</span></div>
+        <div class="pool-bar-bg"><div class="pool-bar-fill" id="pp-bar" style="width:0%;background:#185FA5;"></div></div>
+        <div class="pool-pct" id="pp-pct">0.0% used</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('grid',this)">Hours grid</button>
+      <button class="tab-btn"        onclick="switchTab('summary',this)">Month summary</button>
+      <button class="tab-btn"        onclick="switchTab('staff',this)">Staff</button>
+    </div>
+
+    <div id="tab-grid">
+      <div class="card" style="overflow:visible;">
+        <div class="qp-bar">
+          <span class="qp-label">Quick picks:</span>
+          <span id="qp-pills"></span>
+          <span class="qp-label">· tap to save instantly · adapts to your usage</span>
+        </div>
+        <div class="grid-wrap">
+          <table>
+            <thead id="grid-thead"></thead>
+            <tbody id="grid-tbody"></tbody>
+            <tfoot id="grid-tfoot"></tfoot>
+          </table>
+        </div>
+        <div class="card-footer">Click a cell · tap a quick-pick to save instantly · or type any value and press Enter · Escape to cancel · <span style="color:#e53e3e;">Red = over 24 hrs</span></div>
+      </div>
+    </div>
+
+    <div id="tab-summary" style="display:none;">
+      <div class="card">
+        <div class="card-header"><h2 id="sum-title">Month — payroll summary</h2><p>Staff with hours this month only.</p></div>
+        <table class="sum-table">
+          <thead><tr>
+            <th style="text-align:left;">Name</th><th style="text-align:left;">Role</th>
+            <th style="text-align:left;">CNO #</th><th style="text-align:right;">Hours</th>
+            <th style="text-align:right;">Rate</th><th style="text-align:right;">Amount owing</th>
+          </tr></thead>
+          <tbody id="sum-tbody"></tbody>
+          <tfoot><tr>
+            <td colspan="5" id="sum-foot-label">Total payroll</td>
+            <td style="text-align:right;" id="sum-foot-total"></td>
+          </tr></tfoot>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-header"><h2>Payment codes — paste back to Claude after banking</h2><p>Complete all e-transfers, fill in the codes, then send the block to Claude.</p></div>
+        <div style="padding:16px 20px;"><div class="pay-box" id="pay-box"></div></div>
+        <div class="pay-hint" id="pay-hint"></div>
+      </div>
+      <div class="card" style="padding:14px 20px;">
+        <div style="font-size:13px;font-weight:600;color:#1a202c;margin-bottom:10px;">Expected invoice file names</div>
+        <div id="fname-pills"></div>
+      </div>
+    </div>
+
+    <div id="tab-staff" style="display:none;">
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div><h2>Staff roster</h2></div>
+          <div class="btn-row">
+            <button class="btn-grey" onclick="restoreDefaults()">Restore defaults</button>
+            <button class="btn-blue" onclick="toggleAddForm()">+ Add staff</button>
+          </div>
+        </div>
+        <div id="add-form" style="display:none;">
+          <div class="add-form-grid">
+            <div class="form-field"><label>Full name</label><input id="nf-name" placeholder="Jane Smith"/></div>
+            <div class="form-field"><label>Role</label>
+              <select id="nf-role" onchange="prefillRate()">
+                <option value="RN">RN</option><option value="RPN">RPN</option><option value="PSW">PSW</option>
+              </select>
+            </div>
+            <div class="form-field"><label>CNO # (if applicable)</label><input id="nf-cno" placeholder="Optional"/></div>
+            <div class="form-field"><label>Rate ($/hr)</label><input id="nf-rate" type="number" step="0.01" placeholder="56.07"/></div>
+            <button class="btn-blue" onclick="addStaff()">Add</button>
+          </div>
+        </div>
+        <table class="staff-table">
+          <thead><tr><th>Name</th><th>Role</th><th>CNO #</th><th>Rate / hr</th><th>Hours this month</th><th></th></tr></thead>
+          <tbody id="staff-tbody"></tbody>
+        </table>
+        <div class="card-footer">Any staff member can be removed. Use "Restore defaults" to bring back the original six.</div>
+      </div>
+      <div class="card" style="padding:16px 20px;">
+        <div style="font-size:13px;font-weight:600;color:#1a202c;margin-bottom:6px;">Updating rates</div>
+        <div style="font-size:12px;color:#718096;line-height:1.8;">
+          When rates change, tell Claude: <code style="background:#f7fafc;padding:2px 8px;border-radius:4px;font-size:11px;">"Rates changing — Ling to $55, Beres to $58"</code><br>
+          Claude will update the tracker and invoice script for the new month.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+const MONTH_NAMES    = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DOW            = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const NURSING_LIMITS = {28:224,29:232,30:240,31:248};
+const PSW_LIMITS     = {28:112,29:116,30:120,31:124};
+const ROLE_RATES     = {RN:56.07,RPN:53.23,PSW:38.46};
+const DEFAULT_COUNTS = {"1.5":12,"5":2,"6":4,"6.5":10,"7":8,"7.5":14,"8":18};
+const DEFAULT_STAFF  = [
+  {id:"simms",     name:"Setania Simms",     role:"RN",  cno:"14050901", rate:56.07},
+  {id:"simms_psw", name:"Setania Simms",     role:"PSW", cno:null,       rate:38.46},
+  {id:"ling",      name:"Tracey Ling",       role:"RPN", cno:"1A12921",  rate:53.23},
+  {id:"landry",    name:"Bernadette Landry", role:"RN",  cno:"9040908",  rate:56.07},
+  {id:"beres",     name:"Susie Beres",       role:"RN",  cno:"25137584", rate:56.07},
+  {id:"ellis",     name:"Bryanne Ellis",     role:"PSW", cno:null,       rate:38.46},
+];
+
+// ── Firebase ───────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:            "AIzaSyDsWbnw-B7sy6v8UbaFZeDkMjC-dcYuwYE",
+  authDomain:        "dylan---fmhc.firebaseapp.com",
+  projectId:         "dylan---fmhc",
+  storageBucket:     "dylan---fmhc.firebasestorage.app",
+  messagingSenderId: "404665436173",
+  appId:             "1:404665436173:web:295fd579595be8b3ee2d44"
+});
+const db = firebase.firestore();
+
+// ── State ──────────────────────────────────────────────────────────────────
+let year=new Date().getFullYear(), month=new Date().getMonth()+1;
+let staff=[...DEFAULT_STAFF], hours={}, valueCounts={...DEFAULT_COUNTS};
+let editCell=null, saving=false;
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+const getDays    = (y,m)  => new Date(y,m,0).getDate();
+const getLimits  = d      => ({nursing:NURSING_LIMITS[d]||240,psw:PSW_LIMITS[d]||120});
+const fmt        = n      => n===0?"0":Number.isInteger(n)?String(n):n.toFixed(1);
+const toCAD      = n      => "$"+Number(n).toLocaleString("en-CA",{minimumFractionDigits:2,maximumFractionDigits:2});
+const isNurse    = r      => ["RN","RPN"].includes(r);
+const isDupe     = s      => DEFAULT_STAFF.filter(x=>x.name===s.name).length>1;
+const mkey       = ()     => `${year}-${String(month).padStart(2,"0")}`;
+const total      = sid    => Object.values(hours[sid]||{}).reduce((a,v)=>a+(v||0),0);
+const nUsed      = ()     => staff.filter(s=>isNurse(s.role)).reduce((a,s)=>a+total(s.id),0);
+const pUsed      = ()     => staff.filter(s=>s.role==="PSW").reduce((a,s)=>a+total(s.id),0);
+const payroll    = ()     => staff.reduce((a,s)=>a+total(s.id)*s.rate,0);
+const mergeStaff = saved  => {
+  const map=Object.fromEntries(saved.map(s=>[s.id,s]));
+  const defs=DEFAULT_STAFF.map(d=>map[d.id]||d);
+  const extra=saved.filter(s=>!DEFAULT_STAFF.find(d=>d.id===s.id));
+  return [...defs,...extra];
+};
+const quickPicks = () =>
+  Object.entries(valueCounts).sort((a,b)=>b[1]-a[1]).slice(0,7)
+    .map(([v])=>parseFloat(v)).sort((a,b)=>a-b);
+
+// ── Password: SHA-256 hash, no plaintext in code ───────────────────────────
+async function sha256(str){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+async function tryLogin(){
+  const pw = document.getElementById("pw").value;
+  if(!pw) return;
+  const btn = document.getElementById("login-btn");
+  btn.disabled=true; btn.textContent="Checking…";
+  try{
+    const hash = await sha256(pw);
+    const doc  = await db.collection("settings").doc("auth").get();
+    if(doc.exists && doc.data().hash === hash){
+      document.getElementById("login-screen").style.display="none";
+      document.getElementById("app").style.display="block";
+      initApp();
+    } else {
+      document.getElementById("login-error").style.display="block";
+      document.getElementById("pw").value="";
+    }
+  }catch(e){
+    console.error(e);
+    alert("Connection error. Please check your internet and try again.");
+  }
+  btn.disabled=false; btn.textContent="Sign in";
+}
+
+function logout(){
+  document.getElementById("app").style.display="none";
+  document.getElementById("login-screen").style.display="flex";
+  document.getElementById("pw").value="";
+  document.getElementById("login-error").style.display="none";
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+function initApp(){
+  const sm=document.getElementById("sel-month");
+  const sy=document.getElementById("sel-year");
+  MONTH_NAMES.forEach((m,i)=>{
+    const o=document.createElement("option");
+    o.value=i+1; o.textContent=m; if(i+1===month) o.selected=true;
+    sm.appendChild(o);
+  });
+  [2025,2026,2027,2028].forEach(y=>{
+    const o=document.createElement("option");
+    o.value=y; o.textContent=y; if(y===year) o.selected=true;
+    sy.appendChild(o);
+  });
+  loadAll();
+}
+
+async function loadAll(){
+  showLoading(true);
+  try{
+    const vc=await db.collection("settings").doc("valueCounts").get();
+    if(vc.exists) valueCounts={...DEFAULT_COUNTS,...vc.data()};
+    const sd=await db.collection("settings").doc("staff").get();
+    staff=(sd.exists&&sd.data().list)?mergeStaff(sd.data().list):[...DEFAULT_STAFF];
+    await loadMonth();
+  }catch(e){ console.error(e); }
+  showLoading(false);
+}
+
+async function loadMonth(){
+  showLoading(true);
+  hours={};
+  try{
+    const doc=await db.collection("months").doc(mkey()).get();
+    if(doc.exists){
+      hours=doc.data().hours||{};
+      if(doc.data().staff) staff=mergeStaff(doc.data().staff);
+    }
+  }catch(e){console.error(e);}
+  document.getElementById("top-subtitle").textContent=
+    `${MONTH_NAMES[month-1]} ${year} · ${getDays(year,month)} days`;
+  render();
+  showLoading(false);
+}
+
+async function saveMonth(){
+  if(saving) return; saving=true;
+  try{
+    await db.collection("months").doc(mkey()).set({hours,staff},{merge:true});
+    await db.collection("settings").doc("staff").set({list:staff});
+  }catch(e){console.error(e);}
+  saving=false;
+}
+
+async function saveValueCounts(){
+  try{ await db.collection("settings").doc("valueCounts").set(valueCounts); }catch(e){console.error(e);}
+}
+
+function onMonthChange(){
+  month=parseInt(document.getElementById("sel-month").value);
+  year=parseInt(document.getElementById("sel-year").value);
+  editCell=null; loadMonth();
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render(){ renderPools(); renderQPPills(); renderGrid(); }
+
+function renderPools(){
+  const d=getDays(year,month),lim=getLimits(d);
+  _pool("pn",nUsed(),lim.nursing); _pool("pp",pUsed(),lim.psw);
+}
+function _pool(pfx,used,limit){
+  const pct=limit?Math.min(used/limit,1):0;
+  const col=pct>=0.95?"#e53e3e":pct>=0.80?"#d97706":"#185FA5";
+  const rem=limit-used;
+  document.getElementById(pfx+"-used").textContent=fmt(used);
+  document.getElementById(pfx+"-limit").textContent="/ "+limit+" hrs";
+  document.getElementById(pfx+"-left").textContent=fmt(rem)+" left";
+  document.getElementById(pfx+"-left").style.color=rem<=10?"#e53e3e":"#a0aec0";
+  document.getElementById(pfx+"-bar").style.cssText=`width:${pct*100}%;background:${col};`;
+  document.getElementById(pfx+"-pct").textContent=(pct*100).toFixed(1)+"% used";
+}
+
+function renderQPPills(){
+  document.getElementById("qp-pills").innerHTML=
+    quickPicks().map(v=>`<span class="qp-pill">${fmt(v)}</span>`).join("");
+}
+
+function renderGrid(){
+  const days=getDays(year,month);
+  // Header
+  let h=`<tr><th class="th-day" style="min-width:62px;">Day</th>`;
+  h+=`<th class="th-care" style="min-width:50px;"><div>Care</div><div style="font-size:9px;color:#B5D4F4;font-weight:400;">total</div></th>`;
+  staff.forEach(s=>{
+    h+=`<th style="min-width:78px;"><div style="font-size:11px;">${s.name.split(" ")[0]}</div><div style="font-size:9px;color:#B5D4F4;font-weight:400;">${s.role}</div></th>`;
+  });
+  h+="</tr>";
+  document.getElementById("grid-thead").innerHTML=h;
+
+  // Body
+  let b="";
+  for(let day=1;day<=days;day++){
+    const date=new Date(year,month-1,day);
+    const isWk=date.getDay()===0||date.getDay()===6;
+    const daySum=staff.reduce((sum,s)=>sum+(hours[s.id]?.[day]||0),0);
+    const over24=daySum>24,near24=daySum>20&&daySum<=24;
+    const careCol=over24?"#e53e3e":near24?"#d97706":daySum>0?"#718096":"transparent";
+    const careTxt=daySum>0?fmt(daySum)+(over24?" !":""):"";
+    const dayCl=isWk?"color:#2b6cb0;font-weight:600;":"color:#2d3748;font-weight:500;";
+    const dowCl=isWk?"color:#4299e1;":"color:#a0aec0;";
+
+    b+=`<tr class="${isWk?"weekend":"weekday"}">`;
+    b+=`<td class="td-day"><span style="${dayCl}font-size:12px;">${day}</span><span style="font-size:9px;margin-left:3px;${dowCl}">${DOW[date.getDay()]}</span></td>`;
+    b+=`<td class="td-care"><span style="color:${careCol};font-weight:${over24||near24?600:400};font-size:12px;">${careTxt}</span></td>`;
+
+    staff.forEach(s=>{
+      const isEditing=editCell&&editCell.sid===s.id&&editCell.day===day;
+      const val=hours[s.id]?.[day], has=val!=null, nurse=isNurse(s.role);
+      if(isEditing){
+        const btns=quickPicks().map(v=>`<button class="qp-btn" onmousedown="applyPick(${v})">${fmt(v)}</button>`).join("");
+        b+=`<td class="td-hour"><div class="edit-wrap">
+          <input id="edit-input" type="number" step="0.5" value="${has?val:""}" onblur="commitEdit()" onkeydown="handleEditKey(event)"/>
+          <div class="qp-btns">${btns}</div>
+        </div></td>`;
+      } else {
+        const cls=has?(nurse?"hcell nurse":"hcell psw"):"hcell empty";
+        b+=`<td class="td-hour"><div class="${cls}" onclick="startEdit('${s.id}',${day})">${has?fmt(val):"·"}</div></td>`;
+      }
+    });
+    b+="</tr>";
+  }
+  document.getElementById("grid-tbody").innerHTML=b;
+
+  // Footer
+  let f=`<tr><td class="td-foot-day">Total</td><td></td>`;
+  staff.forEach(s=>{f+=`<td>${fmt(total(s.id))}</td>`;});
+  f+="</tr>";
+  document.getElementById("grid-tfoot").innerHTML=f;
+
+  if(editCell){ const i=document.getElementById("edit-input"); if(i){i.focus();i.select();} }
+}
+
+// ── Edit ───────────────────────────────────────────────────────────────────
+function startEdit(sid,day){ editCell={sid,day}; renderGrid(); }
+function handleEditKey(e){ if(e.key==="Enter")commitEdit(); if(e.key==="Escape"){editCell=null;renderGrid();} }
+async function commitEdit(){
+  if(!editCell) return;
+  const inp=document.getElementById("edit-input"); if(!inp) return;
+  const num=inp.value.trim()===""?null:parseFloat(inp.value);
+  const {sid,day}=editCell;
+  if(!hours[sid]) hours[sid]={};
+  if(num==null||isNaN(num)){ delete hours[sid][day]; }
+  else{ hours[sid][day]=num; valueCounts[String(num)]=(valueCounts[String(num)]||0)+1; saveValueCounts(); }
+  editCell=null; render(); saveMonth();
+}
+async function applyPick(v){
+  if(!editCell) return;
+  const {sid,day}=editCell;
+  if(!hours[sid]) hours[sid]={};
+  hours[sid][day]=v; valueCounts[String(v)]=(valueCounts[String(v)]||0)+1;
+  saveValueCounts(); editCell=null; render(); saveMonth();
+}
+
+// ── Summary ────────────────────────────────────────────────────────────────
+function renderSummary(){
+  const mon=MONTH_NAMES[month-1];
+  document.getElementById("sum-title").textContent=`${mon} ${year} — payroll summary`;
+  document.getElementById("sum-foot-label").textContent=`Total payroll — ${mon} ${year}`;
+  const active=mergeStaff(staff).filter(s=>total(s.id)>0);
+  document.getElementById("sum-tbody").innerHTML=active.map(s=>{
+    const h=total(s.id),p=h*s.rate,dupe=isDupe(s);
+    const name=s.name+(dupe?` <span style="font-size:11px;color:#a0aec0;">(${s.role})</span>`:"");
+    const badge=`<span class="role-badge ${s.role==="PSW"?"role-psw":"role-rn"}">${s.role}</span>`;
+    return `<tr><td style="font-weight:600;">${name}</td><td>${badge}</td><td style="color:#718096;">${s.cno||"—"}</td>
+      <td style="text-align:right;color:#185FA5;font-weight:600;">${fmt(h)}</td>
+      <td style="text-align:right;color:#718096;">${toCAD(s.rate)}</td>
+      <td style="text-align:right;font-weight:600;">${toCAD(p)}</td></tr>`;
+  }).join("");
+  document.getElementById("sum-foot-total").textContent=toCAD(payroll());
+  document.getElementById("pay-box").innerHTML=active.map(s=>{
+    const label=s.name.split(" ")[1]+(isDupe(s)?` (${s.role})`:"");
+    return `<div style="color:#2d3748;">${label} — ${toCAD(total(s.id)*s.rate)} — CODE: ______</div>`;
+  }).join("")+`<div style="margin-top:10px;font-family:sans-serif;font-size:11px;color:#a0aec0;line-height:1.6;">Split payment: "Simms (RN) — $1,500 code ABCD + $1,611.89 code EFGH"</div>`;
+  document.getElementById("pay-hint").innerHTML=`Once all codes are in hand, tell Claude: <strong>"Generate ${mon} ${year} invoices"</strong> and paste the completed block.`;
+  document.getElementById("fname-pills").innerHTML=active.map(s=>{
+    const last=s.name.split(" ")[1].toUpperCase();
+    const m3=MONTH_NAMES[month-1].slice(0,3).toUpperCase();
+    return `<span class="fname-pill">${isDupe(s)?`${last}-${s.role}-${m3}-${year}`:`${last}-${m3}-${year}`}.pdf</span>`;
+  }).join("");
+}
+
+// ── Staff ──────────────────────────────────────────────────────────────────
+function renderStaff(){
+  document.getElementById("staff-tbody").innerHTML=staff.map(s=>{
+    const dupe=isDupe(s);
+    const name=s.name+(dupe?` <span style="font-size:11px;color:#a0aec0;">(${s.role})</span>`:"");
+    const badge=`<span class="role-badge ${s.role==="PSW"?"role-psw":"role-rn"}">${s.role}</span>`;
+    return `<tr><td style="font-weight:500;">${name}</td><td>${badge}</td><td style="color:#718096;">${s.cno||"—"}</td>
+      <td style="color:#718096;">${toCAD(s.rate)}</td><td style="color:#185FA5;font-weight:600;">${fmt(total(s.id))} hrs</td>
+      <td><button class="btn-danger" onclick="removeStaff('${s.id}')">Remove</button></td></tr>`;
+  }).join("");
+}
+function toggleAddForm(){ const f=document.getElementById("add-form"); f.style.display=f.style.display==="none"?"block":"none"; if(f.style.display==="block") prefillRate(); }
+function prefillRate(){ document.getElementById("nf-rate").value=ROLE_RATES[document.getElementById("nf-role").value]||""; }
+async function addStaff(){
+  const name=document.getElementById("nf-name").value.trim();
+  const role=document.getElementById("nf-role").value;
+  const cno=document.getElementById("nf-cno").value.trim()||null;
+  const rate=parseFloat(document.getElementById("nf-rate").value);
+  if(!name||!rate) return;
+  staff.push({id:Date.now().toString(),name,role,cno,rate});
+  document.getElementById("nf-name").value=""; document.getElementById("nf-cno").value="";
+  document.getElementById("add-form").style.display="none";
+  await saveMonth(); renderStaff();
+}
+async function removeStaff(id){ staff=staff.filter(s=>s.id!==id); await saveMonth(); renderStaff(); }
+async function restoreDefaults(){ staff=mergeStaff(staff); await saveMonth(); renderStaff(); }
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+function switchTab(name,btn){
+  ["grid","summary","staff"].forEach(t=>{ document.getElementById("tab-"+t).style.display=t===name?"block":"none"; });
+  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+  btn.classList.add("active");
+  if(name==="summary") renderSummary();
+  if(name==="staff")   renderStaff();
+}
+
+function showLoading(v){ document.getElementById("loading").style.display=v?"flex":"none"; }
+</script>
+</body>
+</html>
