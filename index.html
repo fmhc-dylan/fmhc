@@ -820,11 +820,7 @@ function buildSchedule() {
     // Keep valid existing assignments, drop any that no longer apply
     const cleanShifts = {};
     shiftIds.forEach(sid => {
-      if (sid === "night") {
-        cleanShifts["night"] = "simms"; // always Tania
-      } else if (existing[sid]) {
-        cleanShifts[sid] = existing[sid]; // preserve
-      }
+      if (existing[sid]) cleanShifts[sid] = existing[sid]; // preserve only what was manually set
     });
     scheduleData[d] = { dayType, shifts: cleanShifts };
   }
@@ -936,10 +932,23 @@ function renderSchedGrid() {
       const cm = colMap[c.id];
       if (!cm) { tbody+=`<td class="sched-td"><span style="color:#e2e8f0;font-size:11px;">—</span></td>`; return; }
 
-      // Night — locked to Tania
+      // Night — regular dropdown (Tania RN or Tania PSW, not auto-assigned)
       if (c.id==="night" && cm.shiftId==="night") {
         const nt=getNightTime(d);
-        tbody+=`<td class="sched-td"><div style="font-size:10px;color:#0C447C;background:#E6F1FB;border-radius:4px;padding:2px 4px;text-align:center;">Tania<div style="font-size:9px;color:#4a90d9;">${nt}</div></div></td>`;
+        const current=scheduleData[d]?.shifts?.["night"]||"";
+        const currentStaff=current?staff.find(s=>s.id===current):null;
+        const cls=currentStaff?(currentStaff.role==="PSW"?"psw":"nurse"):"";
+        // Only show Tania options for night
+        const nightStaff=staff.filter(s=>s.name.includes("Setania")||s.name.includes("Simms"));
+        tbody+=`<td class="sched-td">
+          <div style="font-size:9px;color:#a0aec0;text-align:center;margin-bottom:2px;">${nt}</div>
+          <select class="shift-select ${cls}"
+            onchange="assignShift(${d},'night',this.value,this)"
+            data-day="${d}" data-shift="night">
+            <option value="">—</option>
+            ${nightStaff.map(s=>`<option value="${s.id}" ${current===s.id?"selected":""}>${SHORT_NAMES[s.id]||s.name.split(" ")[0]}</option>`).join("")}
+          </select>
+        </td>`;
         return;
       }
 
