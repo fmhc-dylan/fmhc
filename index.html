@@ -468,11 +468,12 @@ async function loadMonth(){
       const pdIn   = doc.data().pdInput||"";
       if(oaksIn){ document.getElementById("oaks-input").value=oaksIn; parseOaks(oaksIn); }
       if(pdIn)  { document.getElementById("pd-input").value=pdIn;     parsePD(pdIn);     }
-      // If schedule data exists, restore the grid
+      // If schedule data exists, restore the grid and resync hours
       if(Object.keys(scheduleData).length>0){
         document.getElementById("sched-setup-card").style.display="none";
         document.getElementById("sched-grid-card").style.display="block";
         document.getElementById("sched-individual-card").style.display="block";
+        syncScheduleToHours(); // rebuild hours from schedule (preserving manual overrides)
         renderSchedGrid();
         renderSchedStaffBtns();
       }
@@ -1072,22 +1073,36 @@ function assignShift(day, shiftId, staffId, selectEl) {
 function syncScheduleToHours() {
   const days = getDays(year, month);
   const SHIFT_HRS = { early:1.5, morning:8.0, arvo:6.5, oaks_out:4.0, oaks_in:6.5 };
+
+  // Step 1 — start fresh, keeping only manually overridden cells
+  const newHours = {};
+  Object.keys(manualOverrides).forEach(sid => {
+    Object.keys(manualOverrides[sid]||{}).forEach(day => {
+      if (manualOverrides[sid][day] && hours[sid]?.[day] != null) {
+        if (!newHours[sid]) newHours[sid] = {};
+        newHours[sid][parseInt(day)] = hours[sid][day];
+      }
+    });
+  });
+
+  // Step 2 — repopulate from schedule, skipping manual overrides
   for (let d=1; d<=days; d++) {
     const shifts = scheduleData[d]?.shifts||{};
     Object.entries(shifts).forEach(([shiftId, sid])=>{
       if (!sid) return;
-      // Skip if manually overridden by user
-      if (manualOverrides[sid]?.[d]) return;
-      if (!hours[sid]) hours[sid]={};
+      if (manualOverrides[sid]?.[d]) return; // already preserved above
+      if (!newHours[sid]) newHours[sid] = {};
       if (shiftId==="night") {
-        hours[sid][d] = getNightHrs(d);
+        newHours[sid][d] = getNightHrs(d);
       } else {
-        // Check for staff-specific override (e.g. Bry's 4pm start)
-        const staffOverride = STAFF_SHIFT_OVERRIDES[sid]?.[shiftId];
-        hours[sid][d] = staffOverride ? staffOverride.hrs : (SHIFT_HRS[shiftId]||0);
+        const staffOvr = STAFF_SHIFT_OVERRIDES[sid]?.[shiftId];
+        newHours[sid][d] = staffOvr ? staffOvr.hrs : (SHIFT_HRS[shiftId]||0);
       }
     });
   }
+
+  // Step 3 — replace hours with clean rebuild
+  hours = newHours;
 }
 
 async function saveSchedule() {
