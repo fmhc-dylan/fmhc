@@ -260,7 +260,10 @@
       <div class="card" id="sched-setup-card">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
           <div><h2 id="sched-setup-title">Schedule setup</h2><p>Enter OAKS days and PD days, then assign shifts.</p></div>
-          <button class="btn-blue" onclick="buildSchedule()">Build schedule</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-grey" onclick="clearThisMonth()" style="color:#e53e3e;border-color:#fed7d7;">Clear month</button>
+            <button class="btn-blue" onclick="buildSchedule()">Build schedule</button>
+          </div>
         </div>
         <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:20px;">
           <div>
@@ -456,6 +459,14 @@ async function loadAll(){
 async function loadMonth(){
   showLoading(true);
   hours={}; manualOverrides={}; scheduleData={}; oaksDays={}; pdDays=new Set();
+
+  // Always clear inputs and hide schedule grid first
+  document.getElementById("oaks-input").value="";
+  document.getElementById("pd-input").value="";
+  document.getElementById("sched-setup-card").style.display="block";
+  document.getElementById("sched-grid-card").style.display="none";
+  document.getElementById("sched-individual-card").style.display="none";
+
   try{
     const doc=await db.collection("months").doc(mkey()).get();
     if(doc.exists){
@@ -463,17 +474,17 @@ async function loadMonth(){
       manualOverrides = doc.data().manualOverrides||{};
       scheduleData    = doc.data().scheduleData||{};
       if(doc.data().staff) staff=mergeStaff(doc.data().staff);
-      // Restore OAKS/PD inputs
+      // Restore OAKS/PD inputs only if this month has its own saved values
       const oaksIn = doc.data().oaksInput||"";
       const pdIn   = doc.data().pdInput||"";
       if(oaksIn){ document.getElementById("oaks-input").value=oaksIn; parseOaks(oaksIn); }
       if(pdIn)  { document.getElementById("pd-input").value=pdIn;     parsePD(pdIn);     }
-      // If schedule data exists, restore the grid and resync hours
+      // Re-show schedule grid only if this month has schedule data
       if(Object.keys(scheduleData).length>0){
         document.getElementById("sched-setup-card").style.display="none";
         document.getElementById("sched-grid-card").style.display="block";
         document.getElementById("sched-individual-card").style.display="block";
-        syncScheduleToHours(); // rebuild hours from schedule (preserving manual overrides)
+        syncScheduleToHours();
         renderSchedGrid();
         renderSchedStaffBtns();
       }
@@ -481,6 +492,8 @@ async function loadMonth(){
   }catch(e){console.error(e);}
   document.getElementById("top-subtitle").textContent=
     `${MONTH_NAMES[month-1]} ${year} · ${getDays(year,month)} days`;
+  document.getElementById("sched-setup-title").textContent=
+    `Schedule setup — ${MONTH_NAMES[month-1]} ${year}`;
   render();
   showLoading(false);
 }
@@ -1113,10 +1126,24 @@ function syncScheduleToHours() {
 // Revert a manually overridden cell back to schedule hours
 async function revertToSchedule(sid, day) {
   if (manualOverrides[sid]) delete manualOverrides[sid][day];
-  editCell = null; setEditV = "";
+  editCell = null;
   syncScheduleToHours();
   render();
   saveMonth();
+}
+
+// Wipe all data for the current month (used to fix accidentally carried-over months)
+async function clearThisMonth() {
+  if (!confirm(`Clear all data for ${MONTH_NAMES[month-1]} ${year}? This cannot be undone.`)) return;
+  hours={}; manualOverrides={}; scheduleData={}; oaksDays={}; pdDays=new Set();
+  document.getElementById("oaks-input").value="";
+  document.getElementById("pd-input").value="";
+  document.getElementById("sched-grid-card").style.display="none";
+  document.getElementById("sched-individual-card").style.display="none";
+  try{
+    await db.collection("months").doc(mkey()).delete();
+  }catch(e){console.error(e);}
+  render();
 }
 
 async function saveSchedule() {
