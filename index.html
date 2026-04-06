@@ -149,6 +149,7 @@
       <button class="tab-btn active" onclick="switchTab('grid',this)">Hours grid</button>
       <button class="tab-btn"        onclick="switchTab('summary',this)">Month summary</button>
       <button class="tab-btn"        onclick="switchTab('staff',this)">Staff</button>
+      <button class="tab-btn"        onclick="switchTab('schedule',this)">Schedule</button>
     </div>
 
     <div id="tab-grid">
@@ -171,7 +172,10 @@
 
     <div id="tab-summary" style="display:none;">
       <div class="card">
-        <div class="card-header"><h2 id="sum-title">Month — payroll summary</h2><p>Staff with hours this month only.</p></div>
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div><h2 id="sum-title">Month — payroll summary</h2><p>Staff with hours this month only.</p></div>
+          <button class="btn-blue" onclick="exportForClaude()" id="export-btn" style="white-space:nowrap;">&#8681; Export for Claude</button>
+        </div>
         <table class="sum-table">
           <thead><tr>
             <th style="text-align:left;">Name</th><th style="text-align:left;">Role</th>
@@ -185,6 +189,21 @@
           </tr></tfoot>
         </table>
       </div>
+
+      <div class="card" id="export-card" style="display:none;">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <div><h2>Claude invoice data</h2><p>Copy everything below and paste it into Claude, then say "Generate invoices".</p></div>
+          <button class="btn-blue" onclick="copyExport()" id="copy-btn">Copy all</button>
+        </div>
+        <div style="padding:16px 20px;">
+          <textarea id="export-text" readonly
+            style="width:100%;height:280px;font-family:monospace;font-size:11px;border:0.5px solid #e2e8f0;border-radius:8px;padding:12px;resize:vertical;background:#f7fafc;color:#2d3748;outline:none;line-height:1.6;"></textarea>
+        </div>
+        <div style="padding:0 20px 14px;font-size:12px;color:#718096;">
+          After pasting into Claude, add your payment codes at the bottom before sending.
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-header"><h2>Payment codes — paste back to Claude after banking</h2><p>Complete all e-transfers, fill in the codes, then send the block to Claude.</p></div>
         <div style="padding:16px 20px;"><div class="pay-box" id="pay-box"></div></div>
@@ -232,8 +251,83 @@
         </div>
       </div>
     </div>
+
+    <!-- SCHEDULE TAB -->
+    <div id="tab-schedule" style="display:none;">
+
+      <!-- Month setup wizard -->
+      <div class="card" id="sched-setup-card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div><h2 id="sched-setup-title">Schedule setup</h2><p>Enter OAKS days and PD days, then assign shifts.</p></div>
+          <button class="btn-blue" onclick="buildSchedule()">Build schedule</button>
+        </div>
+        <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">OAKS Respite days</div>
+            <div style="font-size:12px;color:#718096;margin-bottom:8px;">Just enter the dates — first is going, last is coming home, middle are full OAKS days.</div>
+            <textarea id="oaks-input" placeholder="e.g. 7, 8, 9  (7=going, 8=full OAKS, 9=coming home)" style="width:100%;height:80px;padding:8px 10px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:13px;resize:vertical;outline:none;"></textarea>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">PD Days (school)</div>
+            <div style="font-size:12px;color:#718096;margin-bottom:8px;">Enter PD day dates — these will be scheduled like weekends.</div>
+            <textarea id="pd-input" placeholder="e.g. 14, 28" style="width:100%;height:80px;padding:8px 10px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:13px;resize:vertical;outline:none;"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedule grid -->
+      <div class="card" id="sched-grid-card" style="display:none;">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div><h2>Monthly schedule</h2><p>Assign caregivers to each shift. Hours update the pool bars automatically.</p></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn-grey" onclick="showSetup()">Edit setup</button>
+            <button class="btn-blue" onclick="saveSchedule()">Save schedule</button>
+          </div>
+        </div>
+        <div style="overflow:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;" id="sched-table">
+            <thead id="sched-thead"></thead>
+            <tbody id="sched-tbody"></tbody>
+          </table>
+        </div>
+        <div class="card-footer">Setania does all night shifts · 30 min buffer between night and morning caregiver · Blue = nurse · Green = PSW</div>
+      </div>
+
+      <!-- Individual schedules -->
+      <div class="card" id="sched-individual-card" style="display:none;">
+        <div class="card-header">
+          <h2>Individual schedules</h2>
+          <p>Copy each schedule to send via iMessage.</p>
+        </div>
+        <div style="padding:16px 20px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;" id="sched-staff-btns"></div>
+          <div id="sched-individual-output" style="background:#f7fafc;border:0.5px solid #e2e8f0;border-radius:8px;padding:16px;font-family:monospace;font-size:12px;line-height:1.9;white-space:pre-wrap;min-height:100px;"></div>
+          <button class="btn-blue" onclick="copyIndividual()" style="margin-top:12px;">Copy to clipboard</button>
+        </div>
+      </div>
+
+    </div>
+
   </div>
 </div>
+
+<style>
+  .sched-th{background:#185FA5;color:#fff;padding:8px 6px;font-size:11px;font-weight:500;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:5;}
+  .sched-th-day{text-align:left;padding:8px 10px;position:sticky;left:0;z-index:6;min-width:90px;}
+  .sched-td-day{padding:5px 10px;position:sticky;left:0;z-index:2;border-right:0.5px solid #e2e8f0;font-size:11px;font-weight:500;white-space:nowrap;}
+  .sched-td{padding:3px 4px;border-bottom:0.5px solid #f0f4f8;text-align:center;vertical-align:middle;}
+  .shift-select{width:100%;padding:3px 2px;border:0.5px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff;cursor:pointer;outline:none;}
+  .shift-select.nurse{background:#E6F1FB;color:#0C447C;border-color:#B5D4F4;}
+  .shift-select.psw{background:#f0fff4;color:#276749;border-color:#9ae6b4;}
+  .shift-select.locked{background:#f7fafc;color:#718096;font-style:italic;}
+  .day-label-school{color:#718096;}
+  .day-label-weekend{color:#2b6cb0;font-weight:600;}
+  .day-label-oaks{color:#744210;}
+  .day-label-pd{color:#553c9a;}
+  .day-type-badge{font-size:9px;display:block;color:#a0aec0;font-weight:400;}
+  .sched-staff-btn{padding:6px 14px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;background:#fff;color:#2d3748;}
+  .sched-staff-btn.active{background:#185FA5;color:#fff;border-color:#185FA5;}
+</style>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -547,12 +641,471 @@ async function removeStaff(id){ staff=staff.filter(s=>s.id!==id); await saveMont
 async function restoreDefaults(){ staff=mergeStaff(staff); await saveMonth(); renderStaff(); }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────
+// switchTab is defined in the scheduler section below
+
+// ── Export for Claude ──────────────────────────────────────────────────────
+function exportForClaude(){
+  const mon  = MONTH_NAMES[month-1];
+  const days = getDays(year,month);
+  const active = mergeStaff(staff).filter(s=>total(s.id)>0);
+
+  let out = `FMHC INVOICE DATA — ${mon.toUpperCase()} ${year}\n`;
+  out += `Billing period: ${mon} 1 – ${mon} ${days}, ${year}\n`;
+  out += `Invoice date: ${mon} ${days}, ${year}\n`;
+  out += `Approved by: Julie Teskey\n\n`;
+  out += `${"─".repeat(50)}\n\n`;
+
+  active.forEach(s=>{
+    const dupe  = isDupe(s);
+    const label = s.name + (dupe ? ` (${s.role})` : "");
+    const inv   = s.name.split(" ")[1].toUpperCase() + (dupe?`-${s.role}`:"")+`-${mon.slice(0,3).toUpperCase()}-${year}`;
+    out += `STAFF: ${label}\n`;
+    out += `Role: ${s.role}\n`;
+    if(s.cno) out += `CNO: ${s.cno}\n`;
+    out += `Rate: $${s.rate.toFixed(2)}/hr\n`;
+    out += `Invoice #: ${inv}\n`;
+    out += `\nHours worked:\n`;
+
+    // Day-by-day breakdown
+    const workedDays = Object.entries(hours[s.id]||{})
+      .filter(([,v])=>v>0)
+      .sort(([a],[b])=>parseInt(a)-parseInt(b));
+
+    workedDays.forEach(([day,hrs])=>{
+      const date = new Date(year,month-1,parseInt(day));
+      const dow  = DOW[date.getDay()];
+      out += `  ${mon} ${day}, ${year} (${dow}): ${fmt(hrs)} hrs\n`;
+    });
+
+    const tot = total(s.id);
+    const pay = tot * s.rate;
+    out += `\nTotal hours: ${fmt(tot)}\n`;
+    out += `Total pay: ${toCAD(pay)}\n`;
+    out += `\nPayment received:\n`;
+    out += `  Deposit 1: amount ______ / E-transfer code: ______\n`;
+    out += `  Deposit 2: amount ______ / E-transfer code: ______\n`;
+    out += `\n${"─".repeat(50)}\n\n`;
+  });
+
+  out += `TOTAL PAYROLL: ${toCAD(payroll())}\n\n`;
+  out += `--- PASTE YOUR PAYMENT CODES ABOVE THEN SEND TO CLAUDE ---\n`;
+  out += `Tell Claude: "Generate ${mon} ${year} invoices using the data above"\n`;
+
+  document.getElementById("export-text").value = out;
+  document.getElementById("export-card").style.display = "block";
+  document.getElementById("export-card").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+function copyExport(){
+  const ta = document.getElementById("export-text");
+  ta.select();
+  document.execCommand("copy");
+  const btn = document.getElementById("copy-btn");
+  btn.textContent = "Copied!";
+  btn.style.background = "#276749";
+  setTimeout(()=>{ btn.textContent="Copy all"; btn.style.background=""; },2000);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SCHEDULER
+// ══════════════════════════════════════════════════════════════════════════
+
+// Short display names mapped to staff ids
+const SHORT_NAMES = {
+  simms:     "Tania (RN)",
+  simms_psw: "Tania (PSW)",
+  ling:      "Tracey",
+  landry:    "Berni",
+  beres:     "Susie",
+  ellis:     "Bry",
+};
+const FIRST = {
+  simms:"Tania", simms_psw:"Tania", ling:"Tracey", landry:"Berni", beres:"Susie", ellis:"Bry"
+};
+
+// Shift definitions
+const SHIFTS = [
+  { id:"early",    label:"Early",    time:"5:30am–7:00am", hrs:1.5,  type:"morning" },
+  { id:"morning",  label:"Morning",  time:"6:00am–2:00pm", hrs:8.0,  type:"morning" },
+  { id:"oaks_out", label:"OAKS out", time:"6:00am–10:00am",hrs:4.0,  type:"morning" },
+  { id:"oaks_in",  label:"OAKS in",  time:"3:00pm–9:30pm", hrs:6.5,  type:"afternoon" },
+  { id:"school",   label:"School",   time:"7:00am–3:00pm", hrs:0,    type:"school", locked:true },
+  { id:"arvo",     label:"Afternoon",time:"3:00pm–9:30pm", hrs:6.5,  type:"afternoon" },
+  { id:"night",    label:"Night",    time:"10:00pm–",       hrs:null, type:"night", locked:true },
+];
+
+// Schedule state: { [day]: { dayType, shifts: { shiftId: staffId|"" } } }
+let scheduleData = {};
+let oaksDays     = {}; // { day: 'going'|'full'|'coming' }
+let pdDays       = new Set();
+let activeSchedStaff = null;
+
+function getDayType(day) {
+  if (oaksDays[day]) return "oaks_" + oaksDays[day];
+  const date = new Date(year, month-1, day);
+  const dow  = date.getDay();
+  if (pdDays.has(day)) return "pd";
+  if (dow === 0 || dow === 6) return "weekend";
+  return "school";
+}
+
+function getShiftsForDay(dayType) {
+  // Returns array of shift ids active for this day type
+  if (dayType === "oaks_going")   return ["oaks_out"];
+  if (dayType === "oaks_full")    return [];
+  if (dayType === "oaks_coming")  return ["oaks_in", "night"];
+  if (dayType === "weekend" || dayType === "pd") return ["morning","arvo","night"];
+  if (dayType === "school")       return ["early","school","arvo","night"];
+  return [];
+}
+
+function getNightHrs(day) {
+  // Night shift hours depend on what morning shift comes next day
+  const nextDay  = day + 1;
+  const nextType = getDayType(nextDay);
+  // If next day morning starts at 6am (weekend/pd/oaks_going) -> night ends 5:30am = 7.5hrs
+  // If next day morning starts at 5:30am (school early) -> night ends 5:00am = 7hrs
+  // If no next day or OAKS full -> 7.5hrs default
+  if (nextType === "school") return 7.0;   // 10pm-5am
+  return 7.5;                               // 10pm-5:30am
+}
+
+function getNightTime(day) {
+  const nextType = getDayType(day+1);
+  return nextType === "school" ? "10:00pm–5:00am" : "10:00pm–5:30am";
+}
+
+function parseOaks(input) {
+  oaksDays = {};
+  if (!input.trim()) return;
+  // Accept plain numbers: "7, 8, 9" → 7=going, 8=full, 9=coming
+  // Also still accept "5 going, 6, 7, 8 coming" for backwards compat
+  const parts = input.split(",").map(s=>s.trim()).filter(Boolean);
+  if (parts.length === 0) return;
+  if (parts.length === 1) {
+    const n = parseInt(parts[0]);
+    if (!isNaN(n)) oaksDays[n] = "going"; // single day = going only
+    return;
+  }
+  parts.forEach((p, i) => {
+    const num = parseInt(p);
+    if (isNaN(num)) return;
+    // Explicit keywords override position
+    if (p.includes("going"))       oaksDays[num] = "going";
+    else if (p.includes("coming")) oaksDays[num] = "coming";
+    else if (i === 0)              oaksDays[num] = "going";
+    else if (i === parts.length-1) oaksDays[num] = "coming";
+    else                           oaksDays[num] = "full";
+  });
+}
+
+function parsePD(input) {
+  pdDays = new Set();
+  if (!input.trim()) return;
+  input.split(",").forEach(s=>{ const n=parseInt(s.trim()); if(!isNaN(n)) pdDays.add(n); });
+}
+
+function buildSchedule() {
+  parseOaks(document.getElementById("oaks-input").value);
+  parsePD(document.getElementById("pd-input").value);
+
+  const days = getDays(year, month);
+
+  // Full re-process — recalculate day types and preserve existing non-night assignments
+  for (let d=1; d<=days; d++) {
+    const dayType  = getDayType(d);
+    const shiftIds = getShiftsForDay(dayType);
+    const existing = scheduleData[d]?.shifts || {};
+
+    // Keep valid existing assignments, drop any that no longer apply
+    const cleanShifts = {};
+    shiftIds.forEach(sid => {
+      if (sid === "night") {
+        cleanShifts["night"] = "simms"; // always Tania
+      } else if (existing[sid]) {
+        cleanShifts[sid] = existing[sid]; // preserve
+      }
+    });
+    scheduleData[d] = { dayType, shifts: cleanShifts };
+  }
+
+  document.getElementById("sched-setup-card").style.display="none";
+  document.getElementById("sched-grid-card").style.display="block";
+  document.getElementById("sched-individual-card").style.display="block";
+  renderSchedGrid();
+  renderSchedStaffBtns();
+}
+
+function showSetup() {
+  document.getElementById("sched-setup-card").style.display="block";
+  document.getElementById("sched-grid-card").style.display="none";
+  document.getElementById("sched-individual-card").style.display="none";
+  // Scroll to top of setup card
+  document.getElementById("sched-setup-card").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+function renderSchedGrid() {
+  const days = getDays(year, month);
+  const mon  = MONTH_NAMES[month-1];
+
+  // 4 columns only — OAKS shifts reuse Morning and Afternoon slots
+  const COL = [
+    { id:"early",   label:"Early",     sub:"5:30–7am"   },
+    { id:"morning", label:"Morning",   sub:"6am–2pm"    },  // also OAKS going 6–10am
+    { id:"arvo",    label:"Afternoon", sub:"3–9:30pm"   },  // also OAKS coming 3–9:30pm
+    { id:"night",   label:"Night",     sub:"Tania"      },
+  ];
+
+  let thead = `<tr>
+    <th class="sched-th sched-th-day">Day</th>
+    ${COL.map(c=>`<th class="sched-th" style="min-width:88px;"><div>${c.label}</div><div style="font-size:9px;color:#B5D4F4;font-weight:400;">${c.sub}</div></th>`).join("")}
+    <th class="sched-th" style="min-width:52px;">Hrs</th>
+  </tr>`;
+  document.getElementById("sched-thead").innerHTML = thead;
+
+  let tbody = "";
+  for (let d=1; d<=days; d++) {
+    const date    = new Date(year,month-1,d);
+    const dow     = DOW[date.getDay()];
+    const isWk    = date.getDay()===0||date.getDay()===6;
+    const dayType = getDayType(d);
+    const rowBg   = isWk||dayType==="pd" ? "#EBF4FF" : dayType.startsWith("oaks") ? "#FFFBEB" : "#fff";
+
+    let typeLabel="";
+    if      (dayType==="weekend")      typeLabel="Weekend";
+    else if (dayType==="pd")           typeLabel="PD Day";
+    else if (dayType==="school")       typeLabel="School";
+    else if (dayType==="oaks_going")   typeLabel="OAKS →";
+    else if (dayType==="oaks_full")    typeLabel="OAKS";
+    else if (dayType==="oaks_coming")  typeLabel="← OAKS";
+    const labelCol = isWk||dayType==="pd"?"#2b6cb0":dayType.startsWith("oaks")?"#744210":"#2d3748";
+
+    // Map day type to which columns are active and what shift id/hrs they use
+    // col id → { shiftId, label, hrs }
+    const colMap = {};
+    if (dayType==="school") {
+      colMap["early"]   = { shiftId:"early",  label:"5:30–7am",   hrs:1.5 };
+      colMap["morning"] = { shiftId:null,      label:"SCHOOL",     hrs:0   }; // locked
+      colMap["arvo"]    = { shiftId:"arvo",    label:"3–9:30pm",   hrs:6.5 };
+      colMap["night"]   = { shiftId:"night",   label:"",           hrs:null};
+    } else if (dayType==="weekend"||dayType==="pd") {
+      colMap["early"]   = { shiftId:null,      label:"—",          hrs:0 };
+      colMap["morning"] = { shiftId:"morning", label:"6am–2pm",    hrs:8.0 };
+      colMap["arvo"]    = { shiftId:"arvo",    label:"2–9:30pm",   hrs:7.5 };
+      colMap["night"]   = { shiftId:"night",   label:"",           hrs:null};
+    } else if (dayType==="oaks_going") {
+      colMap["early"]   = { shiftId:null,      label:"—",          hrs:0   };
+      colMap["morning"] = { shiftId:"oaks_out",label:"6–10am",     hrs:4.0 };
+      colMap["arvo"]    = { shiftId:null,      label:"OAKS",       hrs:0   };
+      colMap["night"]   = { shiftId:null,      label:"OAKS",       hrs:0   };
+    } else if (dayType==="oaks_full") {
+      colMap["early"]   = { shiftId:null, label:"OAKS", hrs:0 };
+      colMap["morning"] = { shiftId:null, label:"OAKS", hrs:0 };
+      colMap["arvo"]    = { shiftId:null, label:"OAKS", hrs:0 };
+      colMap["night"]   = { shiftId:null, label:"OAKS", hrs:0 };
+    } else if (dayType==="oaks_coming") {
+      colMap["early"]   = { shiftId:null,      label:"OAKS",       hrs:0   };
+      colMap["morning"] = { shiftId:null,      label:"OAKS",       hrs:0   };
+      colMap["arvo"]    = { shiftId:"oaks_in", label:"3–9:30pm",   hrs:6.5 };
+      colMap["night"]   = { shiftId:"night",   label:"",           hrs:null};
+    } else {
+      colMap["early"]   = { shiftId:null, label:"—", hrs:0 };
+      colMap["morning"] = { shiftId:null, label:"—", hrs:0 };
+      colMap["arvo"]    = { shiftId:null, label:"—", hrs:0 };
+      colMap["night"]   = { shiftId:null, label:"—", hrs:0 };
+    }
+
+    // Calculate day total
+    let dayHrs=0;
+    COL.forEach(c=>{
+      const cm=colMap[c.id];
+      if(!cm||!cm.shiftId) return;
+      const assigned=scheduleData[d]?.shifts?.[cm.shiftId];
+      if(!assigned) return;
+      if(cm.shiftId==="night") dayHrs+=getNightHrs(d);
+      else dayHrs+=cm.hrs||0;
+    });
+
+    tbody += `<tr style="background:${rowBg};border-bottom:0.5px solid #e2e8f0;">
+      <td class="sched-td-day" style="background:${rowBg};">
+        <span style="color:${labelCol};font-size:12px;">${d} ${dow}</span>
+        <span class="day-type-badge">${typeLabel}</span>
+      </td>`;
+
+    COL.forEach(c=>{
+      const cm = colMap[c.id];
+      if (!cm) { tbody+=`<td class="sched-td"><span style="color:#e2e8f0;font-size:11px;">—</span></td>`; return; }
+
+      // Night — locked to Tania
+      if (c.id==="night" && cm.shiftId==="night") {
+        const nt=getNightTime(d);
+        tbody+=`<td class="sched-td"><div style="font-size:10px;color:#0C447C;background:#E6F1FB;border-radius:4px;padding:2px 4px;text-align:center;">Tania<div style="font-size:9px;color:#4a90d9;">${nt}</div></div></td>`;
+        return;
+      }
+
+      // School block
+      if (cm.shiftId===null && cm.label==="SCHOOL") {
+        tbody+=`<td class="sched-td"><span style="font-size:10px;color:#718096;font-style:italic;">School</span></td>`;
+        return;
+      }
+
+      // OAKS block
+      if (cm.shiftId===null && cm.label==="OAKS") {
+        tbody+=`<td class="sched-td"><span style="font-size:10px;color:#92400e;background:#FEF3C7;border-radius:3px;padding:1px 4px;">OAKS</span></td>`;
+        return;
+      }
+
+      // Empty / not applicable
+      if (!cm.shiftId) {
+        tbody+=`<td class="sched-td"><span style="color:#e2e8f0;font-size:11px;">—</span></td>`;
+        return;
+      }
+
+      // Assignable shift — show dropdown + time label
+      const current = scheduleData[d]?.shifts?.[cm.shiftId]||"";
+      const currentStaff = current ? staff.find(s=>s.id===current) : null;
+      const cls = currentStaff ? (currentStaff.role==="PSW"?"psw":"nurse") : "";
+      tbody+=`<td class="sched-td">
+        <div style="font-size:9px;color:#a0aec0;text-align:center;margin-bottom:2px;">${cm.label}</div>
+        <select class="shift-select ${cls}"
+          onchange="assignShift(${d},'${cm.shiftId}',this.value,this)"
+          data-day="${d}" data-shift="${cm.shiftId}">
+          <option value="">—</option>
+          ${staff.map(s=>`<option value="${s.id}" ${current===s.id?"selected":""}>${SHORT_NAMES[s.id]||s.name.split(" ")[0]}</option>`).join("")}
+        </select>
+      </td>`;
+    });
+
+    tbody+=`<td class="sched-td" style="text-align:right;font-weight:500;color:#185FA5;font-size:12px;">${dayHrs>0?dayHrs.toFixed(1):""}</td></tr>`;
+  }
+  document.getElementById("sched-tbody").innerHTML = tbody;
+}
+
+function assignShift(day, shiftId, staffId, selectEl) {
+  if (!scheduleData[day]) scheduleData[day]={dayType:getDayType(day),shifts:{}};
+  if (staffId) scheduleData[day].shifts[shiftId] = staffId;
+  else delete scheduleData[day].shifts[shiftId];
+
+  // Update select styling
+  const s = staffId ? staff.find(x=>x.id===staffId) : null;
+  selectEl.className = "shift-select " + (s ? (s.role==="PSW"?"psw":"nurse") : "");
+
+  // Recalculate pool hours from schedule
+  syncScheduleToHours();
+  renderPools();
+  renderSchedGrid();
+  if (activeSchedStaff) showIndividualSchedule(activeSchedStaff);
+}
+
+function syncScheduleToHours() {
+  const days = getDays(year, month);
+  const SHIFT_HRS = { early:1.5, morning:8.0, arvo:6.5, oaks_out:4.0, oaks_in:6.5 };
+  for (let d=1; d<=days; d++) {
+    const shifts = scheduleData[d]?.shifts||{};
+    Object.entries(shifts).forEach(([shiftId, sid])=>{
+      if (!sid || shiftId==="night") return;
+      const h = SHIFT_HRS[shiftId]||0;
+      if (!hours[sid]) hours[sid]={};
+      hours[sid][d] = (hours[sid][d]||0);
+      hours[sid][d] = h;
+    });
+    // Night hours for Tania
+    const nightSid = shifts["night"];
+    if (nightSid) {
+      if (!hours[nightSid]) hours[nightSid]={};
+      hours[nightSid][d] = getNightHrs(d);
+    }
+  }
+}
+
+async function saveSchedule() {
+  syncScheduleToHours();
+  await saveMonth();
+  const btn = document.querySelector("#sched-grid-card .btn-blue");
+  if(btn){ btn.textContent="Saved!"; setTimeout(()=>btn.textContent="Save schedule",2000); }
+}
+
+function renderSchedStaffBtns() {
+  const container = document.getElementById("sched-staff-btns");
+  const activeStaff = staff.filter(s=>{
+    const days=getDays(year,month);
+    for(let d=1;d<=days;d++){
+      const shifts=scheduleData[d]?.shifts||{};
+      if(Object.values(shifts).includes(s.id)) return true;
+    }
+    return false;
+  });
+  container.innerHTML = activeStaff.map(s=>
+    `<button class="sched-staff-btn ${activeSchedStaff===s.id?"active":""}" onclick="showIndividualSchedule('${s.id}')">${FIRST[s.id]||s.name.split(" ")[0]}</button>`
+  ).join("");
+  if(activeStaff.length===0){
+    container.innerHTML=`<span style="font-size:13px;color:#a0aec0;">Assign shifts first — staff with scheduled shifts will appear here.</span>`;
+  }
+}
+
+function showIndividualSchedule(sid) {
+  activeSchedStaff = sid;
+  renderSchedStaffBtns();
+  const s = staff.find(x=>x.id===sid);
+  if (!s) return;
+  const mon  = MONTH_NAMES[month-1];
+  const days = getDays(year,month);
+  const name = s.name;
+  const role = s.role;
+
+  let lines = [];
+  let totalHrs = 0;
+
+  for (let d=1; d<=days; d++) {
+    const shifts = scheduleData[d]?.shifts||{};
+    const dayType = getDayType(d);
+    const active  = getShiftsForDay(dayType);
+
+    active.forEach(shiftId=>{
+      if (shifts[shiftId] !== sid) return;
+      const date = new Date(year,month-1,d);
+      const dow  = DOW[date.getDay()];
+      let timeStr="", hrs=0;
+      if (shiftId==="night") {
+        timeStr=getNightTime(d); hrs=getNightHrs(d);
+      } else {
+        const sh=SHIFTS.find(x=>x.id===shiftId);
+        timeStr=sh?.time||""; hrs=sh?.hrs||0;
+      }
+      const dateStr=`${dow} ${mon} ${d}`.padEnd(14);
+      lines.push(`${dateStr}  ${timeStr.padEnd(18)}  ${hrs.toFixed(1)} hrs`);
+      totalHrs += hrs;
+    });
+  }
+
+  const header = `${name} — ${role}\n${mon} ${year} Schedule\n${"─".repeat(46)}\n`;
+  const body   = lines.length>0 ? lines.join("\n") : "(No shifts scheduled this month)";
+  const footer = `\n${"─".repeat(46)}\nTotal: ${totalHrs.toFixed(1)} hrs`;
+  document.getElementById("sched-individual-output").textContent = header + body + footer;
+}
+
+function copyIndividual() {
+  const text = document.getElementById("sched-individual-output").textContent;
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn = document.querySelector("#sched-individual-card .btn-blue");
+    btn.textContent="Copied!"; btn.style.background="#276749";
+    setTimeout(()=>{ btn.textContent="Copy to clipboard"; btn.style.background=""; },2000);
+  });
+}
+
+// ── Updated switchTab to handle schedule ──────────────────────────────────
 function switchTab(name,btn){
-  ["grid","summary","staff"].forEach(t=>{ document.getElementById("tab-"+t).style.display=t===name?"block":"none"; });
+  ["grid","summary","staff","schedule"].forEach(t=>{
+    document.getElementById("tab-"+t).style.display=t===name?"block":"none";
+  });
   document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
   btn.classList.add("active");
-  if(name==="summary") renderSummary();
-  if(name==="staff")   renderStaff();
+  if(name==="summary")  renderSummary();
+  if(name==="staff")    renderStaff();
+  if(name==="schedule") {
+    document.getElementById("sched-setup-title").textContent=
+      `Schedule setup — ${MONTH_NAMES[month-1]} ${year}`;
+  }
 }
 
 function showLoading(v){ document.getElementById("loading").style.display=v?"flex":"none"; }
