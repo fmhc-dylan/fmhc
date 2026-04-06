@@ -1065,10 +1065,10 @@ function assignShift(day, shiftId, staffId, selectEl) {
   const s = staffId ? staff.find(x=>x.id===staffId) : null;
   selectEl.className = "shift-select " + (s ? (s.role==="PSW"?"psw":"nurse") : "");
 
-  // Recalculate pool hours from schedule and update everything
+  // Sync hours, re-render grid + pools + schedule
   syncScheduleToHours();
-  renderPools();
-  renderSchedStaffBtns();  // refresh staff buttons with newly assigned people
+  render();                  // ← updates hours grid visually
+  renderSchedStaffBtns();
   if (activeSchedStaff) showIndividualSchedule(activeSchedStaff);
   saveMonth();
 }
