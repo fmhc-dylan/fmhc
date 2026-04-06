@@ -889,14 +889,17 @@ function buildSchedule() {
   document.getElementById("sched-individual-card").style.display="block";
   renderSchedGrid();
   renderSchedStaffBtns();
+  saveMonth(); // persist OAKS/PD inputs and scheduleData immediately
 }
 
 function showSetup() {
   document.getElementById("sched-setup-card").style.display="block";
   document.getElementById("sched-grid-card").style.display="none";
   document.getElementById("sched-individual-card").style.display="none";
-  // Scroll to top of setup card
   document.getElementById("sched-setup-card").scrollIntoView({behavior:"smooth",block:"start"});
+  // Show setup title with current month
+  document.getElementById("sched-setup-title").textContent=
+    `Schedule setup — ${MONTH_NAMES[month-1]} ${year}`;
 }
 
 function renderSchedGrid() {
