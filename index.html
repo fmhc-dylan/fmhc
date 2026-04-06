@@ -459,19 +459,22 @@ async function loadMonth(){
   try{
     const doc=await db.collection("months").doc(mkey()).get();
     if(doc.exists){
-      hours          = doc.data().hours||{};
-      manualOverrides= doc.data().manualOverrides||{};
-      scheduleData   = doc.data().scheduleData||{};
+      hours           = doc.data().hours||{};
+      manualOverrides = doc.data().manualOverrides||{};
+      scheduleData    = doc.data().scheduleData||{};
       if(doc.data().staff) staff=mergeStaff(doc.data().staff);
-      // Restore OAKS/PD inputs if saved
-      if(doc.data().oaksInput) document.getElementById("oaks-input").value=doc.data().oaksInput;
-      if(doc.data().pdInput)   document.getElementById("pd-input").value=doc.data().pdInput;
-      if(doc.data().oaksInput) parseOaks(doc.data().oaksInput);
-      if(doc.data().pdInput)   parsePD(doc.data().pdInput);
-      // Re-show schedule grid if data exists
+      // Restore OAKS/PD inputs
+      const oaksIn = doc.data().oaksInput||"";
+      const pdIn   = doc.data().pdInput||"";
+      if(oaksIn){ document.getElementById("oaks-input").value=oaksIn; parseOaks(oaksIn); }
+      if(pdIn)  { document.getElementById("pd-input").value=pdIn;     parsePD(pdIn);     }
+      // If schedule data exists, restore the grid
       if(Object.keys(scheduleData).length>0){
+        document.getElementById("sched-setup-card").style.display="none";
         document.getElementById("sched-grid-card").style.display="block";
         document.getElementById("sched-individual-card").style.display="block";
+        renderSchedGrid();
+        renderSchedStaffBtns();
       }
     }
   }catch(e){console.error(e);}
@@ -1187,6 +1190,14 @@ function switchTab(name,btn){
   if(name==="schedule") {
     document.getElementById("sched-setup-title").textContent=
       `Schedule setup — ${MONTH_NAMES[month-1]} ${year}`;
+    // If schedule data exists, make sure grid is visible and rendered
+    if(Object.keys(scheduleData).length>0){
+      document.getElementById("sched-setup-card").style.display="none";
+      document.getElementById("sched-grid-card").style.display="block";
+      document.getElementById("sched-individual-card").style.display="block";
+      renderSchedGrid();
+      renderSchedStaffBtns();
+    }
   }
 }
 
