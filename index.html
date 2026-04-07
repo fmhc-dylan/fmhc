@@ -50,6 +50,8 @@
   .qp-pill{padding:2px 8px;border-radius:20px;background:#E6F1FB;color:#0C447C;font-size:11px;font-weight:500;border:0.5px solid #B5D4F4;}
   .grid-wrap{overflow:auto;max-height:calc(100vh - 280px);}
   table{width:100%;border-collapse:collapse;font-size:12px;}
+  .grid-wrap table{width:auto;}
+  #sched-table{width:auto;}
   thead th{position:sticky;top:0;background:#185FA5;color:#fff;font-weight:500;padding:9px 8px;text-align:center;z-index:10;white-space:nowrap;}
   thead th.th-day{text-align:left;padding:9px 12px;position:sticky;left:0;z-index:20;}
   thead th.th-care{border-right:1px solid #B5D4F4;}
@@ -205,14 +207,17 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header"><h2>Payment codes — paste back to Claude after banking</h2><p>Complete all e-transfers, fill in the codes, then send the block to Claude.</p></div>
-        <div style="padding:16px 20px;"><div class="pay-box" id="pay-box"></div></div>
-        <div class="pay-hint" id="pay-hint"></div>
-      </div>
-      <div class="card" style="padding:14px 20px;">
-        <div style="font-size:13px;font-weight:600;color:#1a202c;margin-bottom:10px;">Expected invoice file names</div>
-        <div id="fname-pills"></div>
+      <div class="card" id="payment-card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div><h2>Payment details</h2><p>Enter deposit info after each e-transfer. Saves automatically.</p></div>
+          <button class="btn-blue" id="gen-pdf-btn" onclick="generatePDFs()">&#8681; Generate PDFs</button>
+        </div>
+        <div id="payment-inputs"></div>
+        <div id="pdf-links" style="display:none;padding:12px 20px;border-top:0.5px solid #e2e8f0;"></div>
+        <div style="padding:12px 20px 14px;border-top:0.5px solid #e2e8f0;">
+          <div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;">Invoice file names</div>
+          <div id="fname-pills"></div>
+        </div>
       </div>
     </div>
 
@@ -226,20 +231,22 @@
           </div>
         </div>
         <div id="add-form" style="display:none;">
-          <div class="add-form-grid">
+          <div class="add-form-grid" style="grid-template-columns:2fr 1fr 1fr 1fr 1fr 1fr auto;">
             <div class="form-field"><label>Full name</label><input id="nf-name" placeholder="Jane Smith"/></div>
             <div class="form-field"><label>Role</label>
               <select id="nf-role" onchange="prefillRate()">
                 <option value="RN">RN</option><option value="RPN">RPN</option><option value="PSW">PSW</option>
               </select>
             </div>
-            <div class="form-field"><label>CNO # (if applicable)</label><input id="nf-cno" placeholder="Optional"/></div>
+            <div class="form-field"><label>CNO #</label><input id="nf-cno" placeholder="Optional"/></div>
             <div class="form-field"><label>Rate ($/hr)</label><input id="nf-rate" type="number" step="0.01" placeholder="56.07"/></div>
+            <div class="form-field"><label>Start date</label><input id="nf-start" type="date"/></div>
+            <div class="form-field"><label>Birth date</label><input id="nf-birth" type="date"/></div>
             <button class="btn-blue" onclick="addStaff()">Add</button>
           </div>
         </div>
         <table class="staff-table">
-          <thead><tr><th>Name</th><th>Role</th><th>CNO #</th><th>Rate / hr</th><th>Hours this month</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Role</th><th>CNO #</th><th>Rate / hr</th><th>Start date</th><th>Birth date</th><th></th></tr></thead>
           <tbody id="staff-tbody"></tbody>
         </table>
         <div class="card-footer">Any staff member can be removed. Use "Restore defaults" to bring back the original six.</div>
@@ -269,12 +276,12 @@
           <div>
             <div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">OAKS Respite days</div>
             <div style="font-size:12px;color:#718096;margin-bottom:8px;">Enter all OAKS dates separated by commas. Consecutive dates = one visit. Gaps between dates = separate visits.</div>
-            <textarea id="oaks-input" placeholder="e.g. 1,2,3,5,6,7,12,13,14  (gaps auto-detected as separate visits)" style="width:100%;height:80px;padding:8px 10px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:13px;resize:vertical;outline:none;"></textarea>
+            <textarea id="oaks-input" placeholder="e.g. 1,2,3,5,6,7,12,13,14  (gaps auto-detected as separate visits)" style="width:100%;height:80px;padding:8px 10px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:13px;resize:vertical;outline:none;" oninput="debounceSaveInputs()"></textarea>
           </div>
           <div>
             <div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;">PD Days (school)</div>
             <div style="font-size:12px;color:#718096;margin-bottom:8px;">Enter PD day dates — these will be scheduled like weekends.</div>
-            <textarea id="pd-input" placeholder="e.g. 14, 28" style="width:100%;height:80px;padding:8px 10px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:13px;resize:vertical;outline:none;"></textarea>
+            <textarea id="pd-input" placeholder="e.g. 14, 28" style="width:100%;height:80px;padding:8px 10px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:13px;resize:vertical;outline:none;" oninput="debounceSaveInputs()"></textarea>
           </div>
         </div>
       </div>
@@ -289,12 +296,12 @@
           </div>
         </div>
         <div style="overflow:auto;">
-          <table style="width:100%;border-collapse:collapse;font-size:12px;" id="sched-table">
+          <table style="width:auto;border-collapse:collapse;font-size:12px;" id="sched-table">
             <thead id="sched-thead"></thead>
             <tbody id="sched-tbody"></tbody>
           </table>
         </div>
-        <div class="card-footer">Setania does all night shifts · 30 min buffer between night and morning caregiver · Blue = nurse · Green = PSW</div>
+        <div class="card-footer">Blue = nurse · Green = PSW</div>
       </div>
 
       <!-- Individual schedules -->
@@ -317,10 +324,10 @@
 
 <style>
   .sched-th{background:#185FA5;color:#fff;padding:8px 6px;font-size:11px;font-weight:500;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:5;}
-  .sched-th-day{text-align:left;padding:8px 10px;position:sticky;left:0;z-index:6;min-width:90px;}
+  .sched-th-day{text-align:left;padding:8px 10px;position:sticky;left:0;z-index:6;min-width:75px;}
   .sched-td-day{padding:5px 10px;position:sticky;left:0;z-index:2;border-right:0.5px solid #e2e8f0;font-size:11px;font-weight:500;white-space:nowrap;}
   .sched-td{padding:3px 4px;border-bottom:0.5px solid #f0f4f8;text-align:center;vertical-align:middle;}
-  .shift-select{width:100%;padding:3px 2px;border:0.5px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff;cursor:pointer;outline:none;}
+  .shift-select{width:100%;padding:3px 2px;border:0.5px solid #e2e8f0;border-radius:4px;font-size:11px;background:#fff;color:#2d3748;cursor:pointer;outline:none;}
   .shift-select.nurse{background:#E6F1FB;color:#0C447C;border-color:#B5D4F4;}
   .shift-select.psw{background:#f0fff4;color:#276749;border-color:#9ae6b4;}
   .shift-select.locked{background:#f7fafc;color:#718096;font-style:italic;}
@@ -328,11 +335,13 @@
   .day-label-weekend{color:#2b6cb0;font-weight:600;}
   .day-label-oaks{color:#744210;}
   .day-label-pd{color:#553c9a;}
-  .day-type-badge{font-size:9px;display:block;color:#a0aec0;font-weight:400;}
+  .day-type-badge{font-size:9px;display:block;color:#718096;font-weight:400;}
   .sched-staff-btn{padding:6px 14px;border:0.5px solid #cbd5e0;border-radius:8px;font-size:12px;font-weight:500;cursor:pointer;background:#fff;color:#2d3748;}
   .sched-staff-btn.active{background:#185FA5;color:#fff;border-color:#185FA5;}
 </style>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 <script>
@@ -368,6 +377,7 @@ let year=new Date().getFullYear(), month=new Date().getMonth()+1;
 let staff=[...DEFAULT_STAFF], hours={}, valueCounts={...DEFAULT_COUNTS};
 let editCell=null, saving=false;
 let manualOverrides={}; // {sid: {day: true}} — tracks cells manually edited by user
+let paymentData={};    // {sid: {deposits: [{amount,etrans,date,conf},...]}}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const getDays    = (y,m)  => new Date(y,m,0).getDate();
@@ -458,7 +468,7 @@ async function loadAll(){
 
 async function loadMonth(){
   showLoading(true);
-  hours={}; manualOverrides={}; scheduleData={}; oaksDays={}; pdDays=new Set();
+  hours={}; manualOverrides={}; scheduleData={}; oaksDays={}; pdDays=new Set(); paymentData={};
 
   // Always clear inputs and hide schedule grid first
   document.getElementById("oaks-input").value="";
@@ -473,6 +483,7 @@ async function loadMonth(){
       hours           = doc.data().hours||{};
       manualOverrides = doc.data().manualOverrides||{};
       scheduleData    = doc.data().scheduleData||{};
+      paymentData     = doc.data().paymentData||{};
       if(doc.data().staff) staff=mergeStaff(doc.data().staff);
       // Restore OAKS/PD inputs only if this month has its own saved values
       const oaksIn = doc.data().oaksInput||"";
@@ -504,7 +515,7 @@ async function saveMonth(){
     const oaksInput = document.getElementById("oaks-input")?.value||"";
     const pdInput   = document.getElementById("pd-input")?.value||"";
     await db.collection("months").doc(mkey()).set(
-      {hours, staff, manualOverrides, scheduleData, oaksInput, pdInput},
+      {hours, staff, manualOverrides, scheduleData, oaksInput, pdInput, paymentData},
       {merge:true}
     );
     await db.collection("settings").doc("staff").set({list:staff});
@@ -514,6 +525,151 @@ async function saveMonth(){
 
 async function saveValueCounts(){
   try{ await db.collection("settings").doc("valueCounts").set(valueCounts); }catch(e){console.error(e);}
+}
+
+let _inputSaveTimer = null;
+function debounceSaveInputs(){
+  clearTimeout(_inputSaveTimer);
+  _inputSaveTimer = setTimeout(()=>saveMonth(), 1000);
+}
+
+let _paymentSaveTimer = null;
+function savePaymentField(sid, depIdx, field, value){
+  if(!paymentData[sid]) paymentData[sid]={deposits:[]};
+  while(paymentData[sid].deposits.length<=depIdx) paymentData[sid].deposits.push({});
+  paymentData[sid].deposits[depIdx][field]=value;
+  clearTimeout(_paymentSaveTimer);
+  _paymentSaveTimer=setTimeout(()=>saveMonth(), 800);
+}
+
+// ── PDF Invoice Generation ─────────────────────────────────────────────────
+async function generatePDFs(){
+  const active=mergeStaff(staff).filter(s=>total(s.id)>0);
+  if(!active.length){ alert("No hours recorded this month."); return; }
+  if(!window.jspdf){ alert("PDF library not loaded. Please check your internet connection."); return; }
+  const btn=document.getElementById("gen-pdf-btn");
+  btn.textContent="Generating…"; btn.disabled=true;
+  let links=[];
+  for(const s of active){
+    try{
+      const result=generateInvoicePDF(s);
+      links.push(result);
+    }catch(e){console.error("PDF error for "+s.name,e);}
+  }
+  const container=document.getElementById("pdf-links");
+  container.style.display="block";
+  container.innerHTML=`<div style="font-size:12px;font-weight:600;color:#4a5568;margin-bottom:8px;">Generated invoices</div>`+
+    links.map(l=>`<a href="${l.url}" target="_blank" download="${l.filename}" style="display:inline-block;margin:4px;padding:6px 12px;background:#E6F1FB;color:#0C447C;border:0.5px solid #B5D4F4;border-radius:8px;font-size:12px;font-weight:500;text-decoration:none;">${l.filename}</a>`).join("");
+  container.scrollIntoView({behavior:"smooth",block:"center"});
+  btn.textContent="✓ Done!"; btn.style.background="#276749";
+  setTimeout(()=>{ btn.textContent="↓ Generate PDFs"; btn.style.background=""; btn.disabled=false; },3000);
+}
+
+function generateInvoicePDF(s){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:"pt",format:"letter"});
+
+  const BLUE=[26,74,138], WHITE=[255,255,255], GBG=[245,247,250], DARK=[26,32,44], MGREY=[113,128,150];
+  const pageW=612, pageH=792, mg=40, cW=532;
+  const mon=MONTH_NAMES[month-1], days=getDays(year,month);
+  const lastDay=`${mon} ${days}, ${year}`;
+  const dupe=isDupe(s);
+  const inv=s.name.split(" ")[1].toUpperCase()+(dupe?`-${s.role}`:"")+`-${mon.slice(0,3).toUpperCase()}-${year}`;
+  const roleMap={RN:"REGISTERED NURSE (RN)",RPN:"REGISTERED PRACTICAL NURSE (RPN)",PSW:"PERSONAL SUPPORT WORKER (PSW)"};
+
+  // ── Header bar ─────────────────────────────────────────────────────────────
+  doc.setFillColor(...BLUE); doc.rect(0,0,pageW,72,"F");
+  doc.setTextColor(...WHITE);
+  doc.setFont("helvetica","bold"); doc.setFontSize(22); doc.text("Dylan Teskey - FMHC",mg,30);
+  doc.setFont("helvetica","normal"); doc.setFontSize(9);
+  doc.text("10122 Merrywood Drive \xB7 Grand Bend, ON N0M 1T0 \xB7 519-702-7024",mg,46);
+  doc.text("INVOICE",pageW-mg,22,{align:"right"});
+  doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.text(inv,pageW-mg,44,{align:"right"});
+
+  // ── Staff info box ─────────────────────────────────────────────────────────
+  let y=86;
+  doc.setFillColor(245,247,250); doc.rect(mg,y,cW,78,"F");
+  doc.setTextColor(26,74,138); doc.setFont("helvetica","bold"); doc.setFontSize(16);
+  doc.text(s.name,mg+12,y+22);
+  doc.setTextColor(...MGREY); doc.setFont("helvetica","normal"); doc.setFontSize(8);
+  doc.text(roleMap[s.role]||s.role,mg+12,y+35);
+  if(s.cno){
+    doc.setFont("helvetica","bold"); doc.setFontSize(8); doc.text("CNO #",mg+12,y+50);
+    doc.setFont("helvetica","normal"); doc.setTextColor(...DARK); doc.setFontSize(9); doc.text(s.cno,mg+12,y+64);
+  }
+  const midX=mg+cW*0.52;
+  doc.setTextColor(...MGREY); doc.setFont("helvetica","bold"); doc.setFontSize(7);
+  doc.text("INVOICE DATE",midX,y+50); doc.text("BILLING PERIOD",midX+110,y+50);
+  doc.setFont("helvetica","normal"); doc.setTextColor(...DARK); doc.setFontSize(9);
+  doc.text(lastDay,midX,y+64);
+  doc.text(`${mon} 1 \u2013 ${mon} ${days}, ${year}`,midX+110,y+64);
+
+  // ── Hours table ────────────────────────────────────────────────────────────
+  const workedDays=Object.entries(hours[s.id]||{}).filter(([,v])=>v>0).sort(([a],[b])=>parseInt(a)-parseInt(b));
+  doc.autoTable({
+    startY:y+90, margin:{left:mg,right:mg},
+    head:[["DATE","HOURS","AMOUNT"]],
+    body:workedDays.map(([day,h])=>[`${mon} ${day}, ${year}`,fmt(h),toCAD(h*s.rate)]),
+    theme:"plain",
+    headStyles:{fillColor:BLUE,textColor:WHITE,fontSize:9,fontStyle:"bold",cellPadding:{top:8,bottom:8,left:10,right:8}},
+    bodyStyles:{fontSize:9,cellPadding:{top:6,bottom:6,left:10,right:8},textColor:DARK,lineColor:[220,225,235],lineWidth:0.3},
+    alternateRowStyles:{fillColor:[250,251,253]},
+    columnStyles:{0:{cellWidth:cW*0.6},1:{cellWidth:cW*0.2,halign:"right"},2:{cellWidth:cW*0.2,halign:"right"}},
+  });
+
+  // ── Summary (left) + Deposits (right) ─────────────────────────────────────
+  const tY=doc.lastAutoTable.finalY+10;
+  const lW=cW*0.36, rX=mg+lW+8, rW=cW-lW-8;
+  const tot=total(s.id), pay=tot*s.rate;
+
+  doc.setFillColor(245,247,250); doc.rect(mg,tY,lW,22,"F");
+  doc.setTextColor(...DARK); doc.setFont("helvetica","bold"); doc.setFontSize(9);
+  doc.text("Total Hours:",mg+8,tY+14);
+  doc.setFont("helvetica","normal"); doc.text(`${fmt(tot)} hrs`,mg+lW-8,tY+14,{align:"right"});
+
+  doc.setFillColor(245,247,250); doc.rect(mg,tY+24,lW,22,"F");
+  doc.setFont("helvetica","bold"); doc.text("Hourly Rate:",mg+8,tY+38);
+  doc.setFont("helvetica","normal"); doc.text(`${toCAD(s.rate)} / hr`,mg+lW-8,tY+38,{align:"right"});
+
+  doc.setFillColor(...BLUE); doc.rect(mg,tY+48,lW,38,"F");
+  doc.setTextColor(...WHITE); doc.setFont("helvetica","bold");
+  doc.setFontSize(9); doc.text("TOTAL AMOUNT DUE",mg+8,tY+62);
+  doc.setFontSize(13); doc.text(toCAD(pay),mg+lW-8,tY+78,{align:"right"});
+
+  const deps=paymentData[s.id]?.deposits||[];
+  doc.autoTable({
+    startY:tY, margin:{left:rX,right:mg}, tableWidth:rW,
+    head:[["","Amount ($)","Etrans#","Date","Conf#"]],
+    body:[
+      ["Deposit 1",deps[0]?.amount||"",deps[0]?.etrans||"",deps[0]?.date||"",deps[0]?.conf||""],
+      ["Deposit 2",deps[1]?.amount||"",deps[1]?.etrans||"",deps[1]?.date||"",deps[1]?.conf||""],
+    ],
+    theme:"grid",
+    headStyles:{fillColor:[245,247,250],textColor:MGREY,fontSize:7,fontStyle:"bold",cellPadding:4,lineColor:[200,210,220],lineWidth:0.3},
+    bodyStyles:{fontSize:8,cellPadding:5,textColor:DARK,lineColor:[200,210,220],lineWidth:0.3},
+    columnStyles:{0:{fontStyle:"bold",cellWidth:46}},
+  });
+
+  // ── Approved by ────────────────────────────────────────────────────────────
+  const apY=Math.max(doc.lastAutoTable.finalY,tY+90)+14;
+  const hW=(cW-8)/2;
+  doc.setFillColor(245,247,250); doc.rect(mg,apY,hW,38,"F"); doc.rect(mg+hW+8,apY,hW,38,"F");
+  doc.setTextColor(...MGREY); doc.setFont("helvetica","bold"); doc.setFontSize(7);
+  doc.text("APPROVED BY",mg+8,apY+12); doc.text("DATE",mg+hW+16,apY+12);
+  doc.setTextColor(...DARK); doc.setFont("helvetica","normal"); doc.setFontSize(9);
+  doc.text("Julie Teskey",mg+8,apY+28); doc.text(lastDay,mg+hW+16,apY+28);
+
+  // ── Footer note ────────────────────────────────────────────────────────────
+  doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(150,150,150);
+  doc.text("No overtime. No taxes or deductions applied. Please remit at your earliest convenience.",mg,apY+56);
+
+  // ── Footer line + text ─────────────────────────────────────────────────────
+  doc.setDrawColor(200,210,220); doc.setLineWidth(0.5); doc.line(mg,pageH-36,pageW-mg,pageH-36);
+  doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(...MGREY);
+  doc.text("Dylan Teskey - FMHC \xB7 10122 Merrywood Drive, Grand Bend, ON N0M 1T0 \xB7 519-702-7024",pageW/2,pageH-16,{align:"center"});
+
+  const url=doc.output("bloburl");
+  return {url, filename:inv+".pdf"};
 }
 
 function onMonthChange(){
@@ -549,10 +705,10 @@ function renderQPPills(){
 function renderGrid(){
   const days=getDays(year,month);
   // Header
-  let h=`<tr><th class="th-day" style="min-width:62px;">Day</th>`;
-  h+=`<th class="th-care" style="min-width:50px;"><div>Care</div><div style="font-size:9px;color:#B5D4F4;font-weight:400;">total</div></th>`;
+  let h=`<tr><th class="th-day" style="min-width:36px;">Day</th>`;
+  h+=`<th class="th-care" style="min-width:28px;"><div>Care</div><div style="font-size:9px;color:#B5D4F4;font-weight:400;">total</div></th>`;
   staff.forEach(s=>{
-    h+=`<th style="min-width:78px;"><div style="font-size:11px;">${s.name.split(" ")[0]}</div><div style="font-size:9px;color:#B5D4F4;font-weight:400;">${s.role}</div></th>`;
+    h+=`<th style="min-width:40px;"><div style="font-size:11px;">${s.name.split(" ")[0]}</div><div style="font-size:9px;color:#B5D4F4;font-weight:400;">${s.role}</div></th>`;
   });
   h+="</tr>";
   document.getElementById("grid-thead").innerHTML=h;
@@ -656,11 +812,35 @@ function renderSummary(){
       <td style="text-align:right;font-weight:600;">${toCAD(p)}</td></tr>`;
   }).join("");
   document.getElementById("sum-foot-total").textContent=toCAD(payroll());
-  document.getElementById("pay-box").innerHTML=active.map(s=>{
-    const label=s.name.split(" ")[1]+(isDupe(s)?` (${s.role})`:"");
-    return `<div style="color:#2d3748;">${label} — ${toCAD(total(s.id)*s.rate)} — CODE: ______</div>`;
-  }).join("")+`<div style="margin-top:10px;font-family:sans-serif;font-size:11px;color:#a0aec0;line-height:1.6;">Split payment: "Simms (RN) — $1,500 code ABCD + $1,611.89 code EFGH"</div>`;
-  document.getElementById("pay-hint").innerHTML=`Once all codes are in hand, tell Claude: <strong>"Generate ${mon} ${year} invoices"</strong> and paste the completed block.`;
+  document.getElementById("payment-inputs").innerHTML=active.map(s=>{
+    const deps=paymentData[s.id]?.deposits||[];
+    const dupe=isDupe(s);
+    const label=s.name+(dupe?` <span style="font-size:11px;color:#a0aec0;">(${s.role})</span>`:"");
+    const inp=(i,field,ph,w)=>
+      `<input type="text" placeholder="${ph}" value="${(deps[i]||{})[field]||''}"
+        oninput="savePaymentField('${s.id}',${i},'${field}',this.value)"
+        style="width:${w};padding:5px 8px;border:0.5px solid #cbd5e0;border-radius:4px;font-size:12px;outline:none;"/>`;
+    const rows=[0,1].map(i=>`<tr>
+      <td style="padding:5px 8px 5px 0;font-size:12px;font-weight:600;color:#4a5568;white-space:nowrap;">Deposit ${i+1}</td>
+      <td style="padding:3px;">${inp(i,'amount','$0.00','88px')}</td>
+      <td style="padding:3px;">${inp(i,'etrans','Etrans #','108px')}</td>
+      <td style="padding:3px;">${inp(i,'date','Date','96px')}</td>
+      <td style="padding:3px;">${inp(i,'conf','Conf#','68px')}</td>
+    </tr>`).join('');
+    return `<div style="padding:12px 20px;border-bottom:0.5px solid #e2e8f0;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+        <span style="font-size:13px;font-weight:600;color:#1a202c;">${label}</span>
+        <span style="font-size:13px;font-weight:600;color:#185FA5;">${toCAD(total(s.id)*s.rate)}</span>
+      </div>
+      <table style="border-collapse:collapse;"><thead><tr>
+        <th style="width:65px;"></th>
+        <th style="padding:2px 3px;font-size:10px;color:#718096;font-weight:500;text-align:left;">Amount ($)</th>
+        <th style="padding:2px 3px;font-size:10px;color:#718096;font-weight:500;text-align:left;">Etrans#</th>
+        <th style="padding:2px 3px;font-size:10px;color:#718096;font-weight:500;text-align:left;">Date</th>
+        <th style="padding:2px 3px;font-size:10px;color:#718096;font-weight:500;text-align:left;">Conf#</th>
+      </tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  }).join("");
   document.getElementById("fname-pills").innerHTML=active.map(s=>{
     const last=s.name.split(" ")[1].toUpperCase();
     const m3=MONTH_NAMES[month-1].slice(0,3).toUpperCase();
@@ -674,8 +854,10 @@ function renderStaff(){
     const dupe=isDupe(s);
     const name=s.name+(dupe?` <span style="font-size:11px;color:#a0aec0;">(${s.role})</span>`:"");
     const badge=`<span class="role-badge ${s.role==="PSW"?"role-psw":"role-rn"}">${s.role}</span>`;
+    const startInp=`<input type="date" value="${s.startDate||''}" onchange="updateStaffField('${s.id}','startDate',this.value)" style="padding:4px 6px;border:0.5px solid #cbd5e0;border-radius:4px;font-size:12px;outline:none;"/>`;
+    const birthInp=`<input type="date" value="${s.birthDate||''}" onchange="updateStaffField('${s.id}','birthDate',this.value)" style="padding:4px 6px;border:0.5px solid #cbd5e0;border-radius:4px;font-size:12px;outline:none;"/>`;
     return `<tr><td style="font-weight:500;">${name}</td><td>${badge}</td><td style="color:#718096;">${s.cno||"—"}</td>
-      <td style="color:#718096;">${toCAD(s.rate)}</td><td style="color:#185FA5;font-weight:600;">${fmt(total(s.id))} hrs</td>
+      <td style="color:#718096;">${toCAD(s.rate)}</td><td>${startInp}</td><td>${birthInp}</td>
       <td><button class="btn-danger" onclick="removeStaff('${s.id}')">Remove</button></td></tr>`;
   }).join("");
 }
@@ -686,11 +868,18 @@ async function addStaff(){
   const role=document.getElementById("nf-role").value;
   const cno=document.getElementById("nf-cno").value.trim()||null;
   const rate=parseFloat(document.getElementById("nf-rate").value);
+  const startDate=document.getElementById("nf-start").value||null;
+  const birthDate=document.getElementById("nf-birth").value||null;
   if(!name||!rate) return;
-  staff.push({id:Date.now().toString(),name,role,cno,rate});
+  staff.push({id:Date.now().toString(),name,role,cno,rate,startDate,birthDate});
   document.getElementById("nf-name").value=""; document.getElementById("nf-cno").value="";
+  document.getElementById("nf-start").value=""; document.getElementById("nf-birth").value="";
   document.getElementById("add-form").style.display="none";
   await saveMonth(); renderStaff();
+}
+async function updateStaffField(id,field,value){
+  const s=staff.find(x=>x.id===id);
+  if(s){ s[field]=value||null; await saveMonth(); }
 }
 async function removeStaff(id){ staff=staff.filter(s=>s.id!==id); await saveMonth(); renderStaff(); }
 async function restoreDefaults(){ staff=mergeStaff(staff); await saveMonth(); renderStaff(); }
@@ -933,8 +1122,8 @@ function renderSchedGrid() {
 
   let thead = `<tr>
     <th class="sched-th sched-th-day">Day</th>
-    ${COL.map(c=>`<th class="sched-th" style="min-width:88px;"><div>${c.label}</div><div style="font-size:9px;color:#B5D4F4;font-weight:400;">${c.sub}</div></th>`).join("")}
-    <th class="sched-th" style="min-width:52px;">Hrs</th>
+    ${COL.map(c=>`<th class="sched-th" style="min-width:58px;"><div>${c.label}</div><div style="font-size:9px;color:#B5D4F4;font-weight:400;">${c.sub}</div></th>`).join("")}
+    <th class="sched-th" style="min-width:40px;">Hrs</th>
   </tr>`;
   document.getElementById("sched-thead").innerHTML = thead;
 
@@ -1168,12 +1357,33 @@ function renderSchedStaffBtns() {
     }
     return false;
   });
-  container.innerHTML = activeStaff.map(s=>
+  let btns = activeStaff.map(s=>
     `<button class="sched-staff-btn ${activeSchedStaff===s.id?"active":""}" onclick="showIndividualSchedule('${s.id}')">${FIRST[s.id]||s.name.split(" ")[0]}</button>`
   ).join("");
-  if(activeStaff.length===0){
+  // Add OAKS button if there are any OAKS dates
+  if(Object.keys(oaksDays).length>0){
+    btns+=`<button class="sched-staff-btn ${activeSchedStaff==="oaks"?"active":""}" onclick="showOaksSchedule()" style="border-color:#d69e2e;color:#744210;">OAKS</button>`;
+  }
+  container.innerHTML = btns;
+  if(activeStaff.length===0 && Object.keys(oaksDays).length===0){
     container.innerHTML=`<span style="font-size:13px;color:#a0aec0;">Assign shifts first — staff with scheduled shifts will appear here.</span>`;
   }
+}
+
+function showOaksSchedule(){
+  activeSchedStaff = "oaks";
+  renderSchedStaffBtns();
+  const mon = MONTH_NAMES[month-1];
+  const dates = Object.keys(oaksDays).map(Number).sort((a,b)=>a-b);
+  let lines = [];
+  for(let i=0;i<dates.length;i++){
+    if(i>0 && dates[i]!==dates[i-1]+1) lines.push("");
+    lines.push(`${mon} ${dates[i]}`);
+  }
+  const header = `OAKS Respite \u2014 ${mon} ${year}\n${"─".repeat(30)}\n`;
+  const body = lines.length>0 ? lines.join("\n") : "(No OAKS dates entered)";
+  const footer = `\n${"─".repeat(30)}`;
+  document.getElementById("sched-individual-output").textContent = header + body + footer;
 }
 
 function showIndividualSchedule(sid) {
@@ -1234,17 +1444,18 @@ function showIndividualSchedule(sid) {
         hrs = hours[sid]?.[d] || hrs;
       }
 
-      const dateStr = `${dow} ${mon} ${d}`.padEnd(14);
-      const note    = manualOverrides[sid]?.[d] ? " *" : "";
-      lines.push(`${dateStr}  ${timeStr.padEnd(18)}  ${hrs.toFixed(1)} hrs${note}`);
+      const mon3 = mon.slice(0,3);
+      const day2 = String(d).padStart(2," ");
+      const note = manualOverrides[sid]?.[d] ? " *" : "";
+      lines.push(`${dow} ${mon3} ${day2}  ${timeStr}  \u2013  ${hrs.toFixed(1)} hrs${note}`);
       totalHrs += hrs;
     });
   }
 
-  const header = `${s.name} — ${s.role}\n${mon} ${year} Schedule\n${"─".repeat(48)}\n`;
+  const header = `${s.name} \u2014 ${s.role}\n${mon} ${year} Schedule\n${"─".repeat(30)}\n`;
   const body   = lines.length>0 ? lines.join("\n") : "(No shifts scheduled this month)";
   const note   = lines.some(l=>l.endsWith("*")) ? "\n* Hours adjusted from scheduled time" : "";
-  const footer = `\n${"─".repeat(48)}\nTotal: ${totalHrs.toFixed(1)} hrs${note}`;
+  const footer = `\n${"─".repeat(30)}\nTotal: ${totalHrs.toFixed(1)} hrs${note}`;
   document.getElementById("sched-individual-output").textContent = header + body + footer;
 }
 
